@@ -52,6 +52,9 @@ def _parse_json(raw: str, context: str) -> list[dict]:
         return []
 
 
+_PROMPT_CACHE_HEADER = {"anthropic-beta": "prompt-caching-2024-07-31"}
+
+
 async def extract_events(snippets: str, query: str) -> list[dict]:
     """Extract events from Brave search snippets."""
     log.debug(
@@ -59,15 +62,22 @@ async def extract_events(snippets: str, query: str) -> list[dict]:
     )
     try:
         response = await _client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
             max_tokens=2048,
-            system=_SYSTEM,
+            system=[
+                {
+                    "type": "text",
+                    "text": _SYSTEM,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
             messages=[
                 {
                     "role": "user",
                     "content": f"Search term: {query}\n\nSearch results:\n{snippets[:8000]}",
                 }
             ],
+            extra_headers=_PROMPT_CACHE_HEADER,
         )
     except Exception as exc:
         log.error("Claude API call failed for '%s': %s", query, exc, exc_info=True)
@@ -84,10 +94,16 @@ async def search_and_extract_events(term: str, location: str, year: int) -> list
     log.info("Claude web search: '%s'", label)
     try:
         response = await _client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
             max_tokens=4096,
             tools=[{"type": "web_search_20250305", "name": "web_search"}],
-            system=_SYSTEM_SEARCH,
+            system=[
+                {
+                    "type": "text",
+                    "text": _SYSTEM_SEARCH,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
             messages=[
                 {
                     "role": "user",
@@ -97,6 +113,7 @@ async def search_and_extract_events(term: str, location: str, year: int) -> list
                     ),
                 }
             ],
+            extra_headers=_PROMPT_CACHE_HEADER,
         )
     except Exception as exc:
         log.error("Claude web search failed for '%s': %s", label, exc, exc_info=True)
