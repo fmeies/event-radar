@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – Event Radar{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <div class="dash-header">
+    <div>
+      <h1 class="page-title">Your Radar</h1>
+      <p class="page-subtitle">
+        {% if user.location %}
+          <span class="location-tag">📍 {{ user.location }}</span>
+        {% else %}
+          <span class="location-missing">No location set</span>
+        {% endif %}
+      </p>
+    </div>
+    <button id="search-btn" type="button" class="btn btn-primary">
+      <span>🔍</span> Search now
+    </button>
+  </div>
+
+  <div id="pipeline-log" class="pipeline-log" style="display:none;">
+    <div class="pipeline-log-header">
+      <span>🔎 Search log</span>
+      <button type="button" class="pipeline-log-close" onclick="document.getElementById('pipeline-log').style.display='none'">×</button>
+    </div>
+    <pre id="pipeline-log-content"></pre>
+  </div>
+
+  {% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+  {% endif %}
+  {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+
+  <div class="stack">
+
+    <!-- Location -->
+    <div class="card">
+      <div class="card-title">📍 Location</div>
+      <p class="hint">Events will be searched for this city (e.g. "Hamburg", "New York").</p>
+      <form method="post" action="{{ root_path }}/location" class="inline-form">
+        <input type="text" name="location"
+               value="{{ user.location or '' }}"
+               placeholder="e.g. Hamburg, Berlin, Vienna"
+               required maxlength="100">
+        <button type="submit" class="btn btn-primary">Save</button>
+      </form>
+    </div>
+
+    <!-- Watch list -->
+    <div class="card">
+      <div class="card-title">
+        🎵 Watch list
+        {% if terms %}
+          <span class="term-count">{{ terms|length }}&thinsp;/&thinsp;20</span>
+        {% endif %}
+      </div>
+      <p class="hint">Artists, bands, authors, or speakers you want to track.</p>
+
+      <form method="post" action="{{ root_path }}/terms/add" class="inline-form">
+        <input type="text" name="term"
+               placeholder="e.g. Nick Cave, Stromae, Annie Ernaux"
+               required maxlength="100">
+        <button type="submit" class="btn btn-primary">Add</button>
+      </form>
+
+      {% if terms %}
+        <div class="term-list">
+          {% for term in terms %}
+            <span class="term-chip">
+              {{ term.term }}
+              <form method="post" action="{{ root_path }}/terms/{{ term.id }}/delete" style="display:contents;">
+                <button type="submit" class="term-chip-delete" title="Remove">×</button>
+              </form>
+            </span>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">🎤</div>
+          <div>No artists on your watch list yet.</div>
+          <div class="empty-sub">Add your first one above.</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Schedule info -->
+    <div class="info-banner">
+      <strong>Automatic schedule:</strong> Every day at 08:00, all watch list entries are combined
+      with your location and checked for new events. Already-reported events are not sent again.
+    </div>
+
+  </div>
+</div>
+
+{% block scripts %}
+<script>
+  document.getElementById('search-btn').addEventListener('click', function () {
+    const btn = this;
+    const logPanel = document.getElementById('pipeline-log');
+    const logContent = document.getElementById('pipeline-log-content');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> Searching…';
+    logContent.textContent = '';
+    logPanel.style.display = 'block';
+    logPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    const source = new EventSource('{{ root_path }}/pipeline/stream');
+
+    source.onmessage = function (e) {
+      if (e.data === 'null') {
+        source.close();
+        btn.disabled = false;
+        btn.innerHTML = '<span>🔍</span> Search now';
+        logContent.textContent += '\n✓ Done.';
+        return;
+      }
+      logContent.textContent += JSON.parse(e.data) + '\n';
+      logContent.scrollTop = logContent.scrollHeight;
+    };
+
+    source.onerror = function () {
+      source.close();
+      btn.disabled = false;
+      btn.innerHTML = '<span>🔍</span> Search now';
+      logContent.textContent += '\n⚠ Connection lost.';
+    };
+  });
+</script>
+{% endblock %}
+{% endblock %}

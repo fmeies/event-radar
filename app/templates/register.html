@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Create account – Event Radar{% endblock %}
+
+{% block content %}
+<div class="container-sm">
+  <div class="auth-header">
+    <h1>Create your account</h1>
+    <p>Start tracking events in your city.</p>
+  </div>
+
+  <div class="card">
+    {% if error %}
+      <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ root_path }}/register">
+      <div class="form-group">
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" required autofocus
+               placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="password">
+          Password
+          <span class="label-hint">(min. 8 characters)</span>
+        </label>
+        <input type="password" id="password" name="password" required
+               placeholder="••••••••" minlength="8" autocomplete="new-password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-full">
+        Create account
+      </button>
+    </form>
+  </div>
+
+  <p class="auth-footer">Already have an account? <a href="{{ root_path }}/login">Sign in</a></p>
+</div>
+{% endblock %}

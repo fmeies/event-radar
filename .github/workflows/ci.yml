@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint
+        run: python -m pylint app/ tests/
+
+      - name: Test
+        env:
+          SECRET_KEY: test-secret-key-32-chars-xxxxxxxxx
+          ANTHROPIC_API_KEY: test-api-key
+          SMTP_HOST: localhost
+          FROM_EMAIL: test@example.com
+        run: python -m pytest tests/ -v

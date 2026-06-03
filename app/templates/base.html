@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Event Radar{% endblock %}</title>
+  <link rel="stylesheet" href="{{ root_path }}/static/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <a href="{{ root_path }}/" class="nav-brand">
+      <span class="nav-brand-icon">📡</span>
+      Event Radar
+    </a>
+    <div class="nav-links">
+      {% if user %}
+        <span class="nav-email">{{ user.email }}</span>
+        <form method="post" action="{{ root_path }}/logout" style="display:inline;">
+          <button type="submit" class="btn btn-ghost btn-sm">Sign out</button>
+        </form>
+      {% else %}
+        <a href="{{ root_path }}/login" class="btn btn-ghost btn-sm">Sign in</a>
+        <a href="{{ root_path }}/register" class="btn btn-primary btn-sm">Get started</a>
+      {% endif %}
+    </div>
+  </nav>
+
+  {% block content %}{% endblock %}
+  {% block scripts %}{% endblock %}
+</body>
+</html>

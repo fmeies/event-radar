@@ -1,0 +1,13 @@
+[MAIN]
+py-version = 3.9
+
+[FORMAT]
+max-line-length = 120
+
+[MESSAGES CONTROL]
+disable =
+    C0114,  # missing-module-docstring
+    C0115,  # missing-class-docstring
+    C0116,  # missing-function-docstring
+    R0903,  # too-few-public-methods (false positive on SQLAlchemy models)
+    W0718,  # broad-exception-caught (intentional for external API calls)

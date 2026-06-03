@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Event Radar – Never miss a show{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="hero-badge">AI-powered event monitoring</div>
+  <h1>Never miss a show<br>in your city</h1>
+  <p>
+    Event Radar scans the web daily and sends you an email the moment
+    your favourite artists, authors, or speakers announce a show near you.
+  </p>
+  <div class="hero-actions">
+    <a href="{{ root_path }}/register" class="btn btn-primary btn-lg">Get started free</a>
+    <a href="{{ root_path }}/login" class="btn btn-ghost btn-lg">Sign in</a>
+  </div>
+</section>
+
+<div class="features">
+  <div class="card feature-card">
+    <div class="feature-icon">🔍</div>
+    <h3>Daily scan</h3>
+    <p>Automatic search every morning for all your watched artists.</p>
+  </div>
+  <div class="card feature-card">
+    <div class="feature-icon">📍</div>
+    <h3>Your city</h3>
+    <p>Results filtered to your location — no noise, no irrelevant shows.</p>
+  </div>
+  <div class="card feature-card">
+    <div class="feature-icon">✉️</div>
+    <h3>Email alerts</h3>
+    <p>Instant notification when something new is found. No app required.</p>
+  </div>
+  <div class="card feature-card">
+    <div class="feature-icon">🤖</div>
+    <h3>AI extraction</h3>
+    <p>Claude reads raw search results and pulls out clean event data.</p>
+  </div>
+</div>
+{% endblock %}

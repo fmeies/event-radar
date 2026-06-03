@@ -1,0 +1,2 @@
+# Daily at 08:00 — search for new events for all verified users
+0 8 * * * cd /app && python run_pipeline.py
