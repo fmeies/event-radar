@@ -90,7 +90,7 @@ async def _brave_search(query: str) -> list[dict]:
             return []
 
 
-async def _brave_search_and_extract(query: str) -> list[dict]:
+async def _brave_search_and_extract(query: str, user_sites: list[str]) -> list[dict]:
     results = await _brave_search(query)
     if not results:
         log.info("Brave returned 0 results for '%s'", query)
@@ -100,7 +100,7 @@ async def _brave_search_and_extract(query: str) -> list[dict]:
         f"URL: {r.get('url', '')}\nTitle: {r.get('title', '')}\nSnippet: {r.get('description', '')}"
         for r in results
     )
-    events = await extract_events(snippets, query)
+    events = await extract_events(snippets, query, user_sites)
     log.info("Brave+Claude extracted %d event(s) for '%s'", len(events), query)
     for event in events:
         log.debug(
@@ -112,15 +112,19 @@ async def _brave_search_and_extract(query: str) -> list[dict]:
     return events
 
 
-async def _search_events(term: str, location: str, year: int) -> list[dict]:
+async def _search_events(
+    term: str, location: str, year: int, user_sites: list[str]
+) -> list[dict]:
     if settings.search_mode != "claude":
-        return await _brave_search_and_extract(f"{term} {location} {year}")
-    events = await search_and_extract_events(term, location, year)
+        return await _brave_search_and_extract(f"{term} {location} {year}", user_sites)
+    events = await search_and_extract_events(term, location, year, user_sites)
     if not events and settings.brave_api_key:
         log.info(
             "Claude found nothing, falling back to Brave for '%s %s'", term, location
         )
-        events = await _brave_search_and_extract(f"{term} {location} {year}")
+        events = await _brave_search_and_extract(
+            f"{term} {location} {year}", user_sites
+        )
     return events
 
 
@@ -134,11 +138,12 @@ async def _process_user(user: User, db) -> None:
 
     year = datetime.now().year
     new_events: list[dict] = []
+    user_sites = [s.site for s in user.search_sites]
 
     for i, term in enumerate(user.search_terms):
         if i > 0:
             await asyncio.sleep(_INTER_TERM_DELAY_SECONDS)
-        events = await _search_events(term.term, user.location, year)
+        events = await _search_events(term.term, user.location, year, user_sites)
 
         for event in events:
             if not _is_valid_event(event, user.location):

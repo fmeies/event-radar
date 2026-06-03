@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 
 import anthropic
 from anthropic.types import TextBlock
@@ -55,26 +56,33 @@ def _parse_json(raw: str, context: str) -> list[dict]:
 _PROMPT_CACHE_HEADER = {"anthropic-beta": "prompt-caching-2024-07-31"}
 
 
-def _sites_hint() -> str:
-    raw = settings.search_sites
-    sites = [s.strip() for s in raw.split(",") if s.strip()] if raw else []
-    if not sites:
+def _sites_hint(user_sites: list[str]) -> str:
+    config_raw = settings.search_sites
+    config_sites = (
+        [s.strip() for s in config_raw.split(",") if s.strip()] if config_raw else []
+    )
+    all_sites = config_sites + user_sites
+    if not all_sites:
         return ""
-    return " Prefer results from: " + ", ".join(sites) + "."
+    return " Prefer results from: " + ", ".join(all_sites) + "."
 
 
-def _user_message_brave(query: str, snippets: str) -> str:
-    return f"Search term: {query}{_sites_hint()}\n\nSearch results:\n{snippets[:8000]}"
+def _user_message_brave(query: str, snippets: str, user_sites: list[str]) -> str:
+    return f"Search term: {query}{_sites_hint(user_sites)}\n\nSearch results:\n{snippets[:8000]}"
 
 
-def _user_message_search(term: str, location: str, year: int) -> str:
+def _user_message_search(
+    term: str, location: str, year: int, user_sites: list[str]
+) -> str:
     return (
         f"Search for upcoming {term} concerts and live events in {location} in {year}."
-        f"{_sites_hint()} Return ONLY a JSON array with the events you find."
+        f"{_sites_hint(user_sites)} Return ONLY a JSON array with the events you find."
     )
 
 
-async def extract_events(snippets: str, query: str) -> list[dict]:
+async def extract_events(
+    snippets: str, query: str, user_sites: Optional[list[str]] = None
+) -> list[dict]:
     """Extract events from Brave search snippets."""
     log.debug(
         "Calling Claude for query '%s' (%d chars of snippets)", query, len(snippets)
@@ -93,7 +101,7 @@ async def extract_events(snippets: str, query: str) -> list[dict]:
             messages=[
                 {
                     "role": "user",
-                    "content": _user_message_brave(query, snippets),
+                    "content": _user_message_brave(query, snippets, user_sites or []),
                 }
             ],
             extra_headers=_PROMPT_CACHE_HEADER,
@@ -107,7 +115,9 @@ async def extract_events(snippets: str, query: str) -> list[dict]:
     return _parse_json(raw, query)
 
 
-async def search_and_extract_events(term: str, location: str, year: int) -> list[dict]:
+async def search_and_extract_events(
+    term: str, location: str, year: int, user_sites: Optional[list[str]] = None
+) -> list[dict]:
     """Use Claude's built-in web search to find and extract events directly."""
     label = f"{term} in {location} {year}"
     log.info("Claude web search: '%s'", label)
@@ -126,7 +136,9 @@ async def search_and_extract_events(term: str, location: str, year: int) -> list
             messages=[
                 {
                     "role": "user",
-                    "content": _user_message_search(term, location, year),
+                    "content": _user_message_search(
+                        term, location, year, user_sites or []
+                    ),
                 }
             ],
             extra_headers=_PROMPT_CACHE_HEADER,

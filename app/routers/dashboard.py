@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..database import get_db
 from ..deps import get_current_user
-from ..models import SearchTerm, User
+from ..models import SearchSite, SearchTerm, User
 from ..search_pipeline import run_for_user, run_for_user_streamed
 from ..templating import templates
 
@@ -19,9 +19,11 @@ def _redir(path: str, status_code: int = 303) -> RedirectResponse:
 router = APIRouter()
 
 MAX_SEARCH_TERMS = 20
+MAX_SEARCH_SITES = 10
 
 _ERRORS = {
     "too_many_terms": f"You can track at most {MAX_SEARCH_TERMS} search terms.",
+    "too_many_sites": f"You can add at most {MAX_SEARCH_SITES} search sites.",
 }
 
 _SUCCESS = {
@@ -46,6 +48,7 @@ async def dashboard(
             "request": request,
             "user": user,
             "terms": user.search_terms,
+            "sites": user.search_sites,
             "success": _SUCCESS.get(msg, ""),
             "error": _ERRORS.get(error, ""),
         },
@@ -97,6 +100,62 @@ async def delete_term(
     )
     if term:
         db.delete(term)
+        db.commit()
+
+    return _redir("/dashboard")
+
+
+@router.post("/sites/add")
+async def add_site(
+    site: str = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not user:
+        return _redir("/login")
+
+    site = (
+        site.strip()
+        .lower()
+        .removeprefix("https://")
+        .removeprefix("http://")
+        .rstrip("/")
+    )
+    if not site:
+        return _redir("/dashboard")
+
+    count = db.query(SearchSite).filter(SearchSite.user_id == user.id).count()
+    if count >= MAX_SEARCH_SITES:
+        return _redir("/dashboard?error=too_many_sites")
+
+    duplicate = (
+        db.query(SearchSite)
+        .filter(SearchSite.user_id == user.id, SearchSite.site == site)
+        .first()
+    )
+    if not duplicate:
+        db.add(SearchSite(user_id=user.id, site=site))
+        db.commit()
+
+    return _redir("/dashboard")
+
+
+@router.post("/sites/{site_id}/delete")
+async def delete_site(
+    site_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not user:
+        return _redir("/login")
+
+    site = (
+        db.query(SearchSite)
+        .filter(SearchSite.id == site_id, SearchSite.user_id == user.id)
+        .first()
+    )
+    if site:
+        db.delete(site)
         db.commit()
 
     return _redir("/dashboard")

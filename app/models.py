@@ -32,6 +32,9 @@ class User(Base):
     search_terms = relationship(
         "SearchTerm", back_populates="user", cascade="all, delete-orphan"
     )
+    search_sites = relationship(
+        "SearchSite", back_populates="user", cascade="all, delete-orphan"
+    )
     seen_events = relationship(
         "SeenEvent", back_populates="user", cascade="all, delete-orphan"
     )
@@ -46,6 +49,17 @@ class SearchTerm(Base):
     created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
     user = relationship("User", back_populates="search_terms")
+
+
+class SearchSite(Base):
+    __tablename__ = "search_sites"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    site = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+    user = relationship("User", back_populates="search_sites")
 
 
 class SeenEvent(Base):

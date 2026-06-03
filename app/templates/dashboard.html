@@ -87,6 +87,43 @@
       {% endif %}
     </div>
 
+    <!-- Search sites -->
+    <div class="card">
+      <div class="card-title">
+        🌐 Search sites
+        {% if sites %}
+          <span class="term-count">{{ sites|length }}&thinsp;/&thinsp;10</span>
+        {% endif %}
+      </div>
+      <p class="hint">Websites Claude should prefer when searching for events (e.g. ra.co, eventim.de).</p>
+
+      <form method="post" action="{{ root_path }}/sites/add" class="inline-form">
+        <input type="text" name="site"
+               placeholder="e.g. ra.co, eventim.de"
+               required maxlength="100">
+        <button type="submit" class="btn btn-primary">Add</button>
+      </form>
+
+      {% if sites %}
+        <div class="term-list">
+          {% for s in sites %}
+            <span class="term-chip">
+              {{ s.site }}
+              <form method="post" action="{{ root_path }}/sites/{{ s.id }}/delete" style="display:contents;">
+                <button type="submit" class="term-chip-delete" title="Remove">×</button>
+              </form>
+            </span>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">🌐</div>
+          <div>No preferred sites yet.</div>
+          <div class="empty-sub">Claude will search the web broadly.</div>
+        </div>
+      {% endif %}
+    </div>
+
     <!-- Schedule info -->
     <div class="info-banner">
       <strong>Automatic schedule:</strong> Every day at 08:00, all watch list entries are combined
