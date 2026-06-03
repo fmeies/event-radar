@@ -55,6 +55,24 @@ def _parse_json(raw: str, context: str) -> list[dict]:
 _PROMPT_CACHE_HEADER = {"anthropic-beta": "prompt-caching-2024-07-31"}
 
 
+def _sites_hint() -> str:
+    sites = settings.search_sites
+    if not sites:
+        return ""
+    return " Prefer results from: " + ", ".join(sites) + "."
+
+
+def _user_message_brave(query: str, snippets: str) -> str:
+    return f"Search term: {query}{_sites_hint()}\n\nSearch results:\n{snippets[:8000]}"
+
+
+def _user_message_search(term: str, location: str, year: int) -> str:
+    return (
+        f"Search for upcoming {term} concerts and live events in {location} in {year}."
+        f"{_sites_hint()} Return ONLY a JSON array with the events you find."
+    )
+
+
 async def extract_events(snippets: str, query: str) -> list[dict]:
     """Extract events from Brave search snippets."""
     log.debug(
@@ -74,7 +92,7 @@ async def extract_events(snippets: str, query: str) -> list[dict]:
             messages=[
                 {
                     "role": "user",
-                    "content": f"Search term: {query}\n\nSearch results:\n{snippets[:8000]}",
+                    "content": _user_message_brave(query, snippets),
                 }
             ],
             extra_headers=_PROMPT_CACHE_HEADER,
@@ -107,10 +125,7 @@ async def search_and_extract_events(term: str, location: str, year: int) -> list
             messages=[
                 {
                     "role": "user",
-                    "content": (
-                        f"Search for upcoming {term} concerts and live events in {location} in {year}. "
-                        f"Return ONLY a JSON array with the events you find."
-                    ),
+                    "content": _user_message_search(term, location, year),
                 }
             ],
             extra_headers=_PROMPT_CACHE_HEADER,
