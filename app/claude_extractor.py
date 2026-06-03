@@ -119,7 +119,9 @@ async def search_and_extract_events(term: str, location: str, year: int) -> list
         log.error("Claude web search failed for '%s': %s", label, exc, exc_info=True)
         return []
 
-    raw = next((b.text for b in response.content if isinstance(b, TextBlock)), "")
+    raw = next(
+        (b.text for b in reversed(response.content) if isinstance(b, TextBlock)), ""
+    )
 
     if not raw:
         log.warning("No text response from Claude web search for '%s'", label)
