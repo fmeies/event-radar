@@ -14,4 +14,4 @@ pydantic-settings==2.5.2
 pytest==8.3.3
 pylint==3.3.3
 mypy
-black
+black==25.1.0
