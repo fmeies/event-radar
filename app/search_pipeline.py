@@ -41,7 +41,7 @@ def _is_valid_event(event: dict, location: str) -> bool:
 
 _STREAMED_LOGGERS = ("pipeline", "claude", "email")
 _user_locks: dict[int, asyncio.Lock] = {}
-_INTER_TERM_DELAY_SECONDS = 3
+_INTER_TERM_DELAY_SECONDS = 15
 
 
 class _QueueLogHandler(logging.Handler):
