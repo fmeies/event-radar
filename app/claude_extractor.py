@@ -56,7 +56,8 @@ _PROMPT_CACHE_HEADER = {"anthropic-beta": "prompt-caching-2024-07-31"}
 
 
 def _sites_hint() -> str:
-    sites = settings.search_sites
+    raw = settings.search_sites
+    sites = [s.strip() for s in raw.split(",") if s.strip()] if raw else []
     if not sites:
         return ""
     return " Prefer results from: " + ", ".join(sites) + "."

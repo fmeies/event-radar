@@ -1,6 +1,5 @@
 from typing import Literal
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -18,14 +17,7 @@ class Settings(BaseSettings):
     root_path: str = ""  # e.g. /event-radar when served under a URL prefix
     secure_cookies: bool = False  # set to true when serving over HTTPS
     search_mode: Literal["brave", "claude"] = "claude"
-    search_sites: list[str] = []
-
-    @field_validator("search_sites", mode="before")
-    @classmethod
-    def _parse_sites(cls, v: object) -> list[str]:
-        if isinstance(v, str):
-            return [s.strip() for s in v.split(",") if s.strip()]
-        return v  # type: ignore[return-value]
+    search_sites: str = ""  # comma-separated list of preferred domains
 
     model_config = {"env_file": ".env"}
 
