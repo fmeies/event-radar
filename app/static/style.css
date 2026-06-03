@@ -209,6 +209,13 @@ input:focus {
 }
 .btn-ghost:hover { background: var(--bg); color: var(--text); text-decoration: none; }
 
+.btn-danger {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+.btn-danger:hover { background: #fee2e2; border-color: #f87171; }
+
 .btn-sm   { padding: 0.3125rem 0.75rem; font-size: 0.8125rem; }
 .btn-lg   { padding: 0.6875rem 1.5rem; font-size: 1rem; }
 .btn-full { width: 100%; margin-top: 0.25rem; }

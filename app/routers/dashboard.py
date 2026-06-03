@@ -197,6 +197,22 @@ async def stream_pipeline(user: User = Depends(get_current_user)):
     )
 
 
+@router.post("/account/delete")
+async def delete_account(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not user:
+        return _redir("/login")
+
+    db.delete(user)
+    db.commit()
+
+    response = _redir("/")
+    response.delete_cookie("access_token")
+    return response
+
+
 @router.post("/pipeline/run")
 async def run_now(
     background_tasks: BackgroundTasks,
