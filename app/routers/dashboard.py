@@ -19,7 +19,7 @@ def _redir(path: str, status_code: int = 303) -> RedirectResponse:
 router = APIRouter()
 
 MAX_SEARCH_TERMS = 20
-MAX_SEARCH_SITES = 10
+MAX_SEARCH_SITES = 20
 
 _ERRORS = {
     "too_many_terms": f"You can track at most {MAX_SEARCH_TERMS} search terms.",
