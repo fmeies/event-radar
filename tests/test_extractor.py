@@ -1,6 +1,14 @@
 from app.claude_extractor import _parse_json
 
-EVENTS = [{"name": "Pixies", "date": "2026-06-30", "venue": "Zitadelle", "city": "Berlin", "url": None}]
+EVENTS = [
+    {
+        "name": "Pixies",
+        "date": "2026-06-30",
+        "venue": "Zitadelle",
+        "city": "Berlin",
+        "url": None,
+    }
+]
 EVENTS_JSON = '[{"name": "Pixies", "date": "2026-06-30", "venue": "Zitadelle", "city": "Berlin", "url": null}]'
 
 

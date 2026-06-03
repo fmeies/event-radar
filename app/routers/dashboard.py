@@ -15,6 +15,7 @@ from ..templating import templates
 def _redir(path: str, status_code: int = 303) -> RedirectResponse:
     return RedirectResponse(url=f"{settings.root_path}{path}", status_code=status_code)
 
+
 router = APIRouter()
 
 MAX_SEARCH_TERMS = 20

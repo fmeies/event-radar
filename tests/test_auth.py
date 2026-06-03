@@ -10,6 +10,7 @@ from app.auth import (
 
 # ── Password hashing ───────────────────────────────────────────────────────────
 
+
 def test_hash_and_verify_roundtrip():
     hashed = hash_password("correct-horse-battery")
     assert verify_password("correct-horse-battery", hashed) is True
@@ -25,6 +26,7 @@ def test_hashes_are_unique():
 
 
 # ── JWT tokens ─────────────────────────────────────────────────────────────────
+
 
 def test_access_token_roundtrip():
     token = create_access_token(42)
@@ -46,6 +48,7 @@ def test_tampered_token_returns_none():
 
 
 # ── Email verification tokens ──────────────────────────────────────────────────
+
 
 def test_verification_token_roundtrip():
     token = generate_verification_token("user@example.com")

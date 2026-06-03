@@ -1,6 +1,14 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -21,8 +29,12 @@ class User(Base):
     location = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
-    search_terms = relationship("SearchTerm", back_populates="user", cascade="all, delete-orphan")
-    seen_events = relationship("SeenEvent", back_populates="user", cascade="all, delete-orphan")
+    search_terms = relationship(
+        "SearchTerm", back_populates="user", cascade="all, delete-orphan"
+    )
+    seen_events = relationship(
+        "SeenEvent", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class SearchTerm(Base):

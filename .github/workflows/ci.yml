@@ -19,10 +19,16 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Lint
+      - name: Format check (black)
+        run: python -m black --check app/ tests/
+
+      - name: Lint (pylint)
         run: python -m pylint app/ tests/
 
-      - name: Test
+      - name: Type check (mypy)
+        run: python -m mypy app/
+
+      - name: Test (pytest)
         env:
           SECRET_KEY: test-secret-key-32-chars-xxxxxxxxx
           ANTHROPIC_API_KEY: test-api-key

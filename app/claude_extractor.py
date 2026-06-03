@@ -1,6 +1,7 @@
 import json
 
 import anthropic
+from anthropic.types import TextBlock
 
 from .config import settings
 from .logger import get_logger
@@ -45,13 +46,17 @@ def _parse_json(raw: str, context: str) -> list[dict]:
     try:
         return json.loads(raw)
     except (json.JSONDecodeError, IndexError, AttributeError) as exc:
-        log.warning("Failed to parse Claude response for '%s': %s | %s", context, exc, raw[:200])
+        log.warning(
+            "Failed to parse Claude response for '%s': %s | %s", context, exc, raw[:200]
+        )
         return []
 
 
 async def extract_events(snippets: str, query: str) -> list[dict]:
     """Extract events from Brave search snippets."""
-    log.debug("Calling Claude for query '%s' (%d chars of snippets)", query, len(snippets))
+    log.debug(
+        "Calling Claude for query '%s' (%d chars of snippets)", query, len(snippets)
+    )
     try:
         response = await _client.messages.create(
             model="claude-sonnet-4-6",
@@ -68,7 +73,7 @@ async def extract_events(snippets: str, query: str) -> list[dict]:
         log.error("Claude API call failed for '%s': %s", query, exc, exc_info=True)
         return []
 
-    raw = response.content[0].text.strip()
+    raw = next((b.text for b in response.content if isinstance(b, TextBlock)), "")
     log.debug("Claude raw response for '%s': %s", query, raw[:500])
     return _parse_json(raw, query)
 
@@ -83,23 +88,21 @@ async def search_and_extract_events(term: str, location: str, year: int) -> list
             max_tokens=4096,
             tools=[{"type": "web_search_20250305", "name": "web_search"}],
             system=_SYSTEM_SEARCH,
-            messages=[{
-                "role": "user",
-                "content": (
-                    f"Search for upcoming {term} concerts and live events in {location} in {year}. "
-                    f"Return ONLY a JSON array with the events you find."
-                ),
-            }],
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        f"Search for upcoming {term} concerts and live events in {location} in {year}. "
+                        f"Return ONLY a JSON array with the events you find."
+                    ),
+                }
+            ],
         )
     except Exception as exc:
         log.error("Claude web search failed for '%s': %s", label, exc, exc_info=True)
         return []
 
-    raw = ""
-    for block in response.content:
-        if hasattr(block, "type") and block.type == "text":
-            raw = block.text.strip()
-            break
+    raw = next((b.text for b in response.content if isinstance(b, TextBlock)), "")
 
     if not raw:
         log.warning("No text response from Claude web search for '%s'", label)

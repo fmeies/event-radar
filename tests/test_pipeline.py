@@ -9,6 +9,7 @@ TODAY = date.today().isoformat()
 
 # ── _is_valid_event ────────────────────────────────────────────────────────────
 
+
 def test_valid_event_passes():
     event = {"name": "Pixies", "date": TOMORROW, "city": "Berlin", "venue": "Zitadelle"}
     assert _is_valid_event(event, "Berlin") is True
@@ -45,7 +46,12 @@ def test_wrong_city_rejected():
 
 
 def test_city_substring_match():
-    event = {"name": "Pixies", "date": TOMORROW, "city": "Berlin, Germany", "venue": None}
+    event = {
+        "name": "Pixies",
+        "date": TOMORROW,
+        "city": "Berlin, Germany",
+        "venue": None,
+    }
     assert _is_valid_event(event, "Berlin") is True
 
 
@@ -55,11 +61,17 @@ def test_city_case_insensitive():
 
 
 def test_date_with_time_component():
-    event = {"name": "Pixies", "date": f"{TOMORROW}T20:00:00", "city": "Berlin", "venue": None}
+    event = {
+        "name": "Pixies",
+        "date": f"{TOMORROW}T20:00:00",
+        "city": "Berlin",
+        "venue": None,
+    }
     assert _is_valid_event(event, "Berlin") is True
 
 
 # ── _event_hash ────────────────────────────────────────────────────────────────
+
 
 def test_hash_is_deterministic():
     event = {"name": "Nick Cave", "date": "2026-06-30", "venue": "Waldbühne"}

@@ -45,6 +45,8 @@ def generate_verification_token(email: str) -> str:
 
 def verify_email_token(token: str) -> str | None:
     try:
-        return _serializer.loads(token, salt="email-verify", max_age=VERIFY_TOKEN_MAX_AGE)
+        return _serializer.loads(
+            token, salt="email-verify", max_age=VERIFY_TOKEN_MAX_AGE
+        )
     except Exception:
         return None

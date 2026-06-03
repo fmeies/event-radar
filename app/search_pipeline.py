@@ -38,6 +38,7 @@ def _is_valid_event(event: dict, location: str) -> bool:
 
     return location.lower() in city.lower() or city.lower() in location.lower()
 
+
 _STREAMED_LOGGERS = ("pipeline", "claude", "email")
 _user_locks: dict[int, asyncio.Lock] = {}
 
@@ -69,12 +70,19 @@ async def _brave_search(query: str) -> list[dict]:
     }
     async with httpx.AsyncClient(timeout=30) as client:
         try:
-            r = await client.get(BRAVE_URL, headers=headers, params={"q": query, "count": 10})
+            r = await client.get(
+                BRAVE_URL, headers=headers, params={"q": query, "count": 10}
+            )
             r.raise_for_status()
             results = r.json().get("web", {}).get("results", [])
             log.debug("Brave raw results for '%s': %d hits", query, len(results))
             for i, result in enumerate(results):
-                log.debug("  [%d] %s — %s", i + 1, result.get("title", ""), result.get("url", ""))
+                log.debug(
+                    "  [%d] %s — %s",
+                    i + 1,
+                    result.get("title", ""),
+                    result.get("url", ""),
+                )
             return results
         except Exception as exc:
             log.warning("Brave search failed for '%s': %s", query, exc)
@@ -94,7 +102,12 @@ async def _brave_search_and_extract(query: str) -> list[dict]:
     events = await extract_events(snippets, query)
     log.info("Brave+Claude extracted %d event(s) for '%s'", len(events), query)
     for event in events:
-        log.debug("  Event: %s | %s | %s", event.get("name"), event.get("date"), event.get("venue"))
+        log.debug(
+            "  Event: %s | %s | %s",
+            event.get("name"),
+            event.get("date"),
+            event.get("venue"),
+        )
     return events
 
 
@@ -103,7 +116,9 @@ async def _search_events(term: str, location: str, year: int) -> list[dict]:
         return await _brave_search_and_extract(f"{term} {location} {year}")
     events = await search_and_extract_events(term, location, year)
     if not events and settings.brave_api_key:
-        log.info("Claude found nothing, falling back to Brave for '%s %s'", term, location)
+        log.info(
+            "Claude found nothing, falling back to Brave for '%s %s'", term, location
+        )
         events = await _brave_search_and_extract(f"{term} {location} {year}")
     return events
 
@@ -124,7 +139,12 @@ async def _process_user(user: User, db) -> None:
 
         for event in events:
             if not _is_valid_event(event, user.location):
-                log.debug("Filtered out: %s | date=%s city=%s", event.get("name"), event.get("date"), event.get("city"))
+                log.debug(
+                    "Filtered out: %s | date=%s city=%s",
+                    event.get("name"),
+                    event.get("date"),
+                    event.get("city"),
+                )
                 continue
 
             h = _event_hash(user.id, event)
@@ -136,14 +156,21 @@ async def _process_user(user: User, db) -> None:
             if already_seen:
                 log.debug("Already seen: %s (%s)", event.get("name"), event.get("date"))
             else:
-                log.info("New event: %s | %s | %s", event.get("name"), event.get("date"), event.get("venue"))
+                log.info(
+                    "New event: %s | %s | %s",
+                    event.get("name"),
+                    event.get("date"),
+                    event.get("venue"),
+                )
                 new_events.append(event)
                 db.execute(
-                    sqlite_insert(SeenEvent).values(
+                    sqlite_insert(SeenEvent)
+                    .values(
                         user_id=user.id,
                         event_hash=h,
                         created_at=datetime.now(timezone.utc),
-                    ).on_conflict_do_nothing()
+                    )
+                    .on_conflict_do_nothing()
                 )
 
     db.commit()
@@ -162,7 +189,12 @@ async def run_pipeline() -> None:
         log.info("Starting pipeline for %d user(s)", len(users))
         for user in users:
             try:
-                log.info("Processing %s (location: %s, terms: %d)", user.email, user.location, len(user.search_terms))
+                log.info(
+                    "Processing %s (location: %s, terms: %d)",
+                    user.email,
+                    user.location,
+                    len(user.search_terms),
+                )
                 await _process_user(user, db)
             except Exception as exc:
                 log.error("Failed for %s: %s", user.email, exc, exc_info=True)
@@ -176,7 +208,9 @@ async def run_for_user(user_id: int) -> None:
     lock = _user_locks[user_id]
 
     if lock.locked():
-        log.info("Pipeline already running for user %d, skipping duplicate run", user_id)
+        log.info(
+            "Pipeline already running for user %d, skipping duplicate run", user_id
+        )
         return
 
     async with lock:
