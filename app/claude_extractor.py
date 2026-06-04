@@ -56,11 +56,12 @@ def _parse_json(raw: str, context: str) -> list[dict]:
 
 
 _SYSTEM_DISCOVER = """\
-You find the best websites to search for upcoming concerts and live events for a given artist or band.
+You find the best websites to search for upcoming public events and appearances by a given person or group.
+Events include concerts, readings, lectures, talks, signings, and other public appearances.
 CRITICAL: Respond with a valid JSON array only — no explanations, no prose, no markdown.
 Format: ["domain1.com", "domain2.com"] or [] if nothing found.
-Include the artist's official website and at most 2–3 relevant ticketing or event-listing sites.
-Maximum 5 domains total. Unknown artists → return []. Non-performers → return [].
+Include the person's official website and at most 2–3 relevant event-listing or ticketing sites.
+Maximum 5 domains total. Unknown persons → return [].
 Any response that is not a JSON array is wrong."""
 
 _PROMPT_CACHE_HEADER = {"anthropic-beta": "prompt-caching-2024-07-31"}
@@ -183,7 +184,7 @@ async def discover_sites(term: str) -> list[str]:
             messages=[
                 {
                     "role": "user",
-                    "content": f"Find the best websites for upcoming concerts and live events for: {term}",
+                    "content": f"Find the best websites for upcoming public events and appearances by: {term}",
                 }
             ],
             extra_headers=_PROMPT_CACHE_HEADER,

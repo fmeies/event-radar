@@ -1,5 +1,6 @@
 .env
 seed_sites.py
+list_users.py
 __pycache__/
 *.pyc
 *.pyo
