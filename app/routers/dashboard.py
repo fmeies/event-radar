@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import (
     HTMLResponse,
     JSONResponse,
@@ -14,12 +14,9 @@ from ..config import settings
 from ..constants import MAX_SEARCH_SITES, MAX_SEARCH_TERMS
 from ..database import get_db
 from ..deps import get_current_user
+from ..limiter import limiter
 from ..models import SearchSite, SearchTerm, User
-from ..search_pipeline import (
-    run_discovery_for_user_streamed,
-    run_for_user,
-    run_for_user_streamed,
-)
+from ..search_pipeline import run_discovery_for_user_streamed, run_for_user_streamed
 from ..templating import templates
 
 
@@ -36,11 +33,6 @@ router = APIRouter()
 _ERRORS = {
     "too_many_terms": f"You can track at most {MAX_SEARCH_TERMS} search terms.",
     "too_many_sites": f"You can add at most {MAX_SEARCH_SITES} search sites.",
-}
-
-_SUCCESS = {
-    "pipeline_started": "Search is running in the background. You'll receive an email if new events are found.",
-    "location_saved": "Location saved.",
 }
 
 
@@ -61,7 +53,7 @@ async def dashboard(
             "user": user,
             "terms": user.search_terms,
             "sites": user.search_sites,
-            "success": _SUCCESS.get(msg, ""),
+            "success": "Location saved." if msg == "location_saved" else "",
             "error": _ERRORS.get(error, ""),
         },
     )
@@ -189,7 +181,8 @@ async def update_location(
 
 
 @router.get("/pipeline/stream")
-async def stream_pipeline(user: User = Depends(get_current_user)):
+@limiter.limit("6/hour")
+async def stream_pipeline(request: Request, user: User = Depends(get_current_user)):
     if not user:
         return _redir("/login")
 
@@ -210,7 +203,10 @@ async def stream_pipeline(user: User = Depends(get_current_user)):
 
 
 @router.get("/sites/discover/stream")
-async def discover_sites_stream(user: User = Depends(get_current_user)):
+@limiter.limit("6/hour")
+async def discover_sites_stream(
+    request: Request, user: User = Depends(get_current_user)
+):
     if not user:
         return _redir("/login")
 
@@ -263,15 +259,3 @@ async def delete_account(
     response = _redir("/")
     response.delete_cookie("access_token")
     return response
-
-
-@router.post("/pipeline/run")
-async def run_now(
-    background_tasks: BackgroundTasks,
-    user: User = Depends(get_current_user),
-):
-    if not user:
-        return _redir("/login")
-
-    background_tasks.add_task(run_for_user, user.id)
-    return _redir("/dashboard?msg=pipeline_started")

@@ -16,6 +16,7 @@ from ..email_service import (
     send_admin_registration_notification,
     send_verification_email,
 )
+from ..limiter import limiter
 from ..logger import get_logger
 from ..models import User
 from ..templating import templates
@@ -41,6 +42,7 @@ async def register_page(request: Request, user=Depends(get_current_user)):
 
 
 @router.post("/register")
+@limiter.limit("5/hour")
 async def register(
     request: Request,
     email: str = Form(...),
@@ -145,6 +147,7 @@ async def login_page(request: Request, msg: str = "", user=Depends(get_current_u
 
 
 @router.post("/login")
+@limiter.limit("20/minute")
 async def login(
     request: Request,
     email: str = Form(...),

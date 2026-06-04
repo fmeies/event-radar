@@ -212,7 +212,7 @@ async def run_pipeline() -> None:
         db.close()
 
 
-async def run_for_user(user_id: int) -> None:
+async def _run_for_user(user_id: int) -> None:
     if user_id not in _user_locks:
         _user_locks[user_id] = asyncio.Lock()
     lock = _user_locks[user_id]
@@ -329,7 +329,7 @@ async def run_for_user_streamed(user_id: int):
 
     async def _run() -> None:
         try:
-            await run_for_user(user_id)
+            await _run_for_user(user_id)
         finally:
             for name in _STREAMED_LOGGERS:
                 logging.getLogger(name).removeHandler(handler)

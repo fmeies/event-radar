@@ -11,3 +11,4 @@ disable =
     C0116,  # missing-function-docstring
     R0903,  # too-few-public-methods (false positive on SQLAlchemy models)
     W0718,  # broad-exception-caught (intentional for external API calls)
+    W0613,  # unused-argument (request param required by slowapi decorator but not used in body)
