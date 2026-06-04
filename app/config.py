@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     base_url: str = "http://localhost:8000"
     root_path: str = ""  # e.g. /event-radar when served under a URL prefix
     secure_cookies: bool = False  # set to true when serving over HTTPS
+    admin_email: str = (
+        ""  # receives new-registration notifications; defaults to from_email if empty
+    )
     search_mode: Literal["brave", "claude"] = "claude"
 
     model_config = {"env_file": ".env"}

@@ -53,6 +53,16 @@ async def send_verification_email(to_email: str, token: str) -> None:
     await _send(msg)
 
 
+async def send_admin_registration_notification(new_email: str) -> None:
+    admin = settings.admin_email or settings.from_email
+    log.info(
+        "Sending registration notification to admin %s (new user: %s)", admin, new_email
+    )
+    msg = _base_msg(admin, f"Event Radar – New registration: {new_email}")
+    msg.set_content(f"A new account was created:\n\n  {new_email}\n\n– Event Radar")
+    await _send(msg)
+
+
 async def send_event_notification(
     to_email: str, events: list[dict], location: str
 ) -> None:

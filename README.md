@@ -6,11 +6,14 @@ Automated event monitoring tool. Users are notified by email when artists, autho
 
 1. Users register and configure a location (e.g. "Berlin") and a watch list of names
 2. Every day at 08:00 the search pipeline runs for all verified users
-3. For each name on the watch list, [Claude](https://anthropic.com) searches the web directly and extracts structured event data (name, date, venue, URL)
-4. Events without a clean date or matching city are discarded
-5. New events (not previously reported) trigger an email notification
+3. For each name on the watch list, [Claude](https://anthropic.com) searches the web and extracts structured event data (name, date, venue, URL)
+4. Events include concerts, readings, lectures, talks, and other public appearances
+5. Events without a clean future date or matching city are discarded
+6. New events (not previously reported) trigger an email notification
 
 A **Search now** button in the dashboard triggers the pipeline manually and streams the log live in the browser.
+
+A **Discover** button lets Claude suggest the best websites for each watch list entry. The user can then select which sites to add as preferred search sources.
 
 ## Requirements
 
@@ -44,6 +47,7 @@ The app is now available at `http://localhost:8000`.
 | `SMTP_USER` | | SMTP username (leave empty for unauthenticated) |
 | `SMTP_PASSWORD` | | SMTP password |
 | `FROM_EMAIL` | ✅ | Sender address |
+| `ADMIN_EMAIL` | | Receives a notification when a new user registers. Defaults to `FROM_EMAIL`. |
 | `BASE_URL` | ✅ | Public URL of this instance including path prefix — used in verification email links (e.g. `https://yourdomain.com/event-radar`) |
 | `ROOT_PATH` | | URL prefix when served under a sub-path (e.g. `/event-radar`). Leave empty for root. |
 | `SECURE_COOKIES` | | Set to `true` when serving over HTTPS |

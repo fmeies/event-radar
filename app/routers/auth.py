@@ -12,7 +12,10 @@ from ..auth import (
 from ..config import settings
 from ..database import get_db
 from ..deps import get_current_user
-from ..email_service import send_verification_email
+from ..email_service import (
+    send_admin_registration_notification,
+    send_verification_email,
+)
 from ..logger import get_logger
 from ..models import User
 from ..templating import templates
@@ -87,6 +90,11 @@ async def register(
                 "error": "Could not send confirmation email. Please try again later.",
             },
         )
+
+    try:
+        await send_admin_registration_notification(email)
+    except Exception as exc:
+        log.error("Failed to send admin registration notification: %s", exc)
 
     return _redir("/login?msg=registered")
 
