@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import cast
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -20,13 +21,14 @@ log = get_logger("web")
 BASE_DIR = Path(__file__).parent
 
 
-async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+async def _rate_limit_exceeded_handler(request: Request, exc: Exception):
+    rate_exc = cast(RateLimitExceeded, exc)
     log.warning(
         "Rate limit exceeded: %s %s from %s (%s)",
         request.method,
         request.url.path,
         request.client,
-        exc.detail,
+        rate_exc.detail,
     )
     if "text/html" in request.headers.get("accept", ""):
         return templates.TemplateResponse(
