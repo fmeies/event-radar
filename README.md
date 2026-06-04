@@ -87,6 +87,14 @@ for u in db.query(User).all():
 "
 ```
 
+## Listing registered users
+
+```bash
+docker compose exec web python list_users.py
+```
+
+Shows all users with their verification status, location, watch list, and search sites.
+
 ## Running the search pipeline manually
 
 Either click **Search now** in the dashboard (shows a live log), or run the pipeline for all users from the host:
