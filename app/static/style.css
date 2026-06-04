@@ -435,6 +435,25 @@ input:focus {
   word-break: break-all;
 }
 
+/* ── Discover results ── */
+.discover-results {
+  border-top: 1px solid #1e293b;
+  padding: 1rem;
+}
+
+.discover-check-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: #94a3b8;
+}
+.discover-check-item input[type="checkbox"] { accent-color: var(--primary); cursor: pointer; }
+.discover-site { color: #e2e8f0; font-weight: 500; }
+.discover-term { color: #475569; }
+
 /* ── Responsive ── */
 @media (max-width: 480px) {
   .dash-header    { flex-direction: column; }

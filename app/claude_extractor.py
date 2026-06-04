@@ -13,8 +13,9 @@ _client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
 _SYSTEM = """\
 You extract structured event data from web search result snippets.
+Events include concerts, readings, lectures, talks, signings, and any other public appearances.
 Return exclusively a JSON array. Each object contains:
-- "name": artist, band, or event name (string)
+- "name": artist, band, author, or speaker name (string)
 - "date": event date, ISO format preferred (string or null)
 - "venue": venue or hall name (string or null)
 - "city": city (string or null)
@@ -25,9 +26,10 @@ If no events are recognisable, return [].
 No markdown, no comments — only the JSON array."""
 
 _SYSTEM_SEARCH = """\
-You search for upcoming live events and concerts and return structured data.
+You search for upcoming public events and appearances and return structured data.
+Events include concerts, readings, lectures, talks, signings, and any other public appearances.
 Return exclusively a JSON array. Each object contains:
-- "name": artist, band, or event name (string)
+- "name": artist, band, author, or speaker name (string)
 - "date": event date, ISO format YYYY-MM-DD (string or null)
 - "venue": venue or hall name (string or null)
 - "city": city (string or null)
@@ -53,18 +55,21 @@ def _parse_json(raw: str, context: str) -> list[dict]:
         return []
 
 
+_SYSTEM_DISCOVER = """\
+You find the best websites to search for upcoming concerts and live events for a given artist or band.
+CRITICAL: Respond with a valid JSON array only — no explanations, no prose, no markdown.
+Format: ["domain1.com", "domain2.com"] or [] if nothing found.
+Include the artist's official website and at most 2–3 relevant ticketing or event-listing sites.
+Maximum 5 domains total. Unknown artists → return []. Non-performers → return [].
+Any response that is not a JSON array is wrong."""
+
 _PROMPT_CACHE_HEADER = {"anthropic-beta": "prompt-caching-2024-07-31"}
 
 
 def _sites_hint(user_sites: list[str]) -> str:
-    config_raw = settings.search_sites
-    config_sites = (
-        [s.strip() for s in config_raw.split(",") if s.strip()] if config_raw else []
-    )
-    all_sites = config_sites + user_sites
-    if not all_sites:
+    if not user_sites:
         return ""
-    return " Prefer results from: " + ", ".join(all_sites) + "."
+    return " Prefer results from: " + ", ".join(user_sites[:8]) + "."
 
 
 def _user_message_brave(query: str, snippets: str, user_sites: list[str]) -> str:
@@ -75,7 +80,8 @@ def _user_message_search(
     term: str, location: str, year: int, user_sites: list[str]
 ) -> str:
     return (
-        f"Search for upcoming {term} concerts and live events in {location} in {year}."
+        f"Search for upcoming public events and appearances by {term} in {location} in {year}."
+        f" Include concerts, readings, lectures, talks, and signings."
         f"{_sites_hint(user_sites)} Return ONLY a JSON array with the events you find."
     )
 
@@ -157,3 +163,52 @@ async def search_and_extract_events(
 
     log.debug("Claude web search response for '%s': %s", label, raw[:500])
     return _parse_json(raw, label)
+
+
+async def discover_sites(term: str) -> list[str]:
+    """Use Claude web search to find the best websites for concert info about an artist."""
+    log.info("Discovering sites for '%s'", term)
+    try:
+        response = await _client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=512,
+            tools=[{"type": "web_search_20250305", "name": "web_search"}],
+            system=[
+                {
+                    "type": "text",
+                    "text": _SYSTEM_DISCOVER,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Find the best websites for upcoming concerts and live events for: {term}",
+                }
+            ],
+            extra_headers=_PROMPT_CACHE_HEADER,
+        )
+    except Exception as exc:
+        log.error("Site discovery failed for '%s': %s", term, exc, exc_info=True)
+        return []
+
+    raw = next(
+        (b.text for b in reversed(response.content) if isinstance(b, TextBlock)), ""
+    )
+    if not raw:
+        log.debug("No response from Claude for site discovery of '%s'", term)
+        return []
+
+    raw = raw.strip()
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError:
+        log.debug("No sites found for '%s' (model returned natural language)", term)
+        return []
+
+    sites = [s for s in result if isinstance(s, str)]
+    if sites:
+        log.info("Discovered %d site(s) for '%s': %s", len(sites), term, sites)
+    else:
+        log.info("No sites found for '%s'", term)
+    return sites

@@ -23,9 +23,17 @@
   <div id="pipeline-log" class="pipeline-log" style="display:none;">
     <div class="pipeline-log-header">
       <span>🔎 Search log</span>
-      <button type="button" class="pipeline-log-close" onclick="document.getElementById('pipeline-log').style.display='none'">×</button>
+      <button type="button" class="pipeline-log-close" onclick="document.getElementById('pipeline-log').style.display='none'; document.getElementById('discover-results').style.display='none'">×</button>
     </div>
     <pre id="pipeline-log-content"></pre>
+    <div id="discover-results" style="display:none;" class="discover-results">
+      <p class="hint" style="margin-bottom:0.625rem;">Select the sites to add. <strong>This replaces your current site list.</strong></p>
+      <div id="discover-checkboxes"></div>
+      <div style="display:flex; gap:0.5rem; margin-top:0.75rem;">
+        <button id="discover-apply-btn" type="button" class="btn btn-primary btn-sm">Apply selected</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('discover-results').style.display='none'">Cancel</button>
+      </div>
+    </div>
   </div>
 
   {% if success %}
@@ -92,17 +100,20 @@
       <div class="card-title">
         🌐 Search sites
         {% if sites %}
-          <span class="term-count">{{ sites|length }}&thinsp;/&thinsp;20</span>
+          <span class="term-count">{{ sites|length }}&thinsp;/&thinsp;8</span>
         {% endif %}
       </div>
-      <p class="hint">Websites Claude should prefer when searching for events (e.g. ra.co, eventim.de).</p>
+      <p class="hint">Websites Claude should prefer when searching for events (e.g. ra.co, eventim.de). Use <strong>Discover</strong> to let Claude suggest sites for your watch list automatically.</p>
 
-      <form method="post" action="{{ root_path }}/sites/add" class="inline-form">
-        <input type="text" name="site"
-               placeholder="e.g. ra.co, eventim.de"
-               required maxlength="100">
-        <button type="submit" class="btn btn-primary">Add</button>
-      </form>
+      <div class="inline-form" style="margin-bottom: 0.5rem;">
+        <form method="post" action="{{ root_path }}/sites/add" class="inline-form" style="flex:1; margin-bottom:0;">
+          <input type="text" name="site"
+                 placeholder="e.g. ra.co, eventim.de"
+                 required maxlength="100">
+          <button type="submit" class="btn btn-primary">Add</button>
+        </form>
+        <button id="discover-btn" type="button" class="btn btn-ghost">🔎 Discover</button>
+      </div>
 
       {% if sites %}
         <div class="term-list">
@@ -145,37 +156,90 @@
 
 {% block scripts %}
 <script>
-  document.getElementById('search-btn').addEventListener('click', function () {
-    const btn = this;
+  function startStream(url, btn, busyLabel, doneLabel, onResult) {
     const logPanel = document.getElementById('pipeline-log');
     const logContent = document.getElementById('pipeline-log-content');
+    const discoverResults = document.getElementById('discover-results');
 
     btn.disabled = true;
-    btn.innerHTML = '<span>⏳</span> Searching…';
+    btn.innerHTML = busyLabel;
     logContent.textContent = '';
+    discoverResults.style.display = 'none';
     logPanel.style.display = 'block';
     logPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-    const source = new EventSource('{{ root_path }}/pipeline/stream');
+    const source = new EventSource(url);
 
     source.onmessage = function (e) {
-      if (e.data === 'null') {
+      const parsed = JSON.parse(e.data);
+      if (parsed === null) {
         source.close();
         btn.disabled = false;
-        btn.innerHTML = '<span>🔍</span> Search now';
+        btn.innerHTML = doneLabel;
         logContent.textContent += '\n✓ Done.';
+        logContent.scrollTop = logContent.scrollHeight;
         return;
       }
-      logContent.textContent += JSON.parse(e.data) + '\n';
+      if (typeof parsed === 'object' && parsed !== null && parsed.type === 'result') {
+        if (onResult) onResult(parsed.sites);
+        return;
+      }
+      logContent.textContent += parsed + '\n';
       logContent.scrollTop = logContent.scrollHeight;
     };
 
     source.onerror = function () {
       source.close();
       btn.disabled = false;
-      btn.innerHTML = '<span>🔍</span> Search now';
+      btn.innerHTML = doneLabel;
       logContent.textContent += '\n⚠ Connection lost.';
     };
+  }
+
+  function showDiscoverResults(sites) {
+    const container = document.getElementById('discover-results');
+    const checkboxes = document.getElementById('discover-checkboxes');
+    if (!sites || !sites.length) return;
+    checkboxes.innerHTML = sites.map(function (s) {
+      return '<label class="discover-check-item">'
+        + '<input type="checkbox" value="' + s.site + '" checked>'
+        + '<span class="discover-site">' + s.site + '</span>'
+        + '<span class="discover-term">(' + s.term + ')</span>'
+        + '</label>';
+    }).join('');
+    container.style.display = 'block';
+    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  document.getElementById('search-btn').addEventListener('click', function () {
+    startStream(
+      '{{ root_path }}/pipeline/stream',
+      this,
+      '<span>⏳</span> Searching…',
+      '<span>🔍</span> Search now',
+      null
+    );
+  });
+
+  document.getElementById('discover-btn').addEventListener('click', function () {
+    startStream(
+      '{{ root_path }}/sites/discover/stream',
+      this,
+      '<span>⏳</span> Discovering…',
+      '🔎 Discover',
+      showDiscoverResults
+    );
+  });
+
+  document.getElementById('discover-apply-btn').addEventListener('click', async function () {
+    const checked = document.querySelectorAll('#discover-checkboxes input[type=checkbox]:checked');
+    const sites = Array.from(checked).map(function (cb) { return cb.value; });
+    const resp = await fetch('{{ root_path }}/sites/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sites: sites })
+    });
+    if (resp.ok) window.location.reload();
   });
 </script>
 {% endblock %}

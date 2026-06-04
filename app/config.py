@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     root_path: str = ""  # e.g. /event-radar when served under a URL prefix
     secure_cookies: bool = False  # set to true when serving over HTTPS
     search_mode: Literal["brave", "claude"] = "claude"
-    search_sites: str = ""  # comma-separated list of preferred domains
 
     model_config = {"env_file": ".env"}
 

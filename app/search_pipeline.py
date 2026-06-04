@@ -8,8 +8,9 @@ from datetime import date, datetime, timezone
 import httpx
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from .claude_extractor import extract_events, search_and_extract_events
+from .claude_extractor import discover_sites, extract_events, search_and_extract_events
 from .config import settings
+from .constants import MAX_SEARCH_SITES
 from .database import SessionLocal
 from .email_service import send_event_notification
 from .logger import get_logger
@@ -42,6 +43,7 @@ def _is_valid_event(event: dict, location: str) -> bool:
 _STREAMED_LOGGERS = ("pipeline", "claude", "email")
 _user_locks: dict[int, asyncio.Lock] = {}
 _INTER_TERM_DELAY_SECONDS = 15
+_INTER_DISCOVERY_DELAY_SECONDS = 5
 
 
 class _QueueLogHandler(logging.Handler):
@@ -230,6 +232,84 @@ async def run_for_user(user_id: int) -> None:
                 await _process_user(user, db)
         finally:
             db.close()
+
+
+async def _collect_sites_for_user(user: User) -> list[dict]:
+    """Discover sites for all search terms. Returns list of {site, term} dicts — no DB writes."""
+    if not user.search_terms:
+        log.info("No search terms for %s, skipping discovery", user.email)
+        return []
+
+    seen: set[str] = set()
+    results: list[dict] = []
+
+    for i, term in enumerate(user.search_terms):
+        if len(results) >= MAX_SEARCH_SITES:
+            log.info("Site limit (%d) reached, stopping discovery", MAX_SEARCH_SITES)
+            break
+        if i > 0:
+            await asyncio.sleep(_INTER_DISCOVERY_DELAY_SECONDS)
+
+        for raw_site in await discover_sites(term.term):
+            site = (
+                raw_site.strip()
+                .lower()
+                .removeprefix("https://")
+                .removeprefix("http://")
+                .rstrip("/")
+            )
+            if not site or site in seen or len(results) >= MAX_SEARCH_SITES:
+                continue
+            seen.add(site)
+            results.append({"site": site, "term": term.term})
+
+    log.info("Discovery complete — %d site(s) found", len(results))
+    return results
+
+
+async def run_discovery_for_user_streamed(user_id: int):
+    """Yields log lines, then a final {"type":"result","sites":[...]} object for SSE streaming."""
+    if user_id not in _user_locks:
+        _user_locks[user_id] = asyncio.Lock()
+
+    if _user_locks[user_id].locked():
+        yield "INFO      Pipeline is already running — please wait."
+        return
+
+    queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=200)
+    handler = _QueueLogHandler(queue)
+    discovered: list[dict] = []
+
+    for name in _STREAMED_LOGGERS:
+        logging.getLogger(name).addHandler(handler)
+
+    async def _run() -> None:
+        try:
+            async with _user_locks[user_id]:
+                db = SessionLocal()
+                try:
+                    user = db.query(User).filter(User.id == user_id).first()
+                    if user:
+                        log.info("Starting site discovery for %s", user.email)
+                        discovered.extend(await _collect_sites_for_user(user))
+                finally:
+                    db.close()
+        except Exception as exc:
+            log.error("Discovery failed: %s", exc, exc_info=True)
+        finally:
+            for name in _STREAMED_LOGGERS:
+                logging.getLogger(name).removeHandler(handler)
+            await queue.put(None)
+
+    asyncio.create_task(_run())
+
+    while True:
+        msg = await queue.get()
+        if msg is None:
+            break
+        yield msg
+
+    yield {"type": "result", "sites": discovered}
 
 
 async def run_for_user_streamed(user_id: int):

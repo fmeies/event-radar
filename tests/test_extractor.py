@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 from app.claude_extractor import _parse_json, _sites_hint
 
 EVENTS = [
@@ -48,28 +46,17 @@ def test_empty_string_returns_empty():
 
 
 def test_sites_hint_empty():
-    with patch("app.claude_extractor.settings") as mock:
-        mock.search_sites = ""
-        assert _sites_hint([]) == ""
+    assert _sites_hint([]) == ""
 
 
-def test_sites_hint_user_sites_only():
-    with patch("app.claude_extractor.settings") as mock:
-        mock.search_sites = ""
-        assert (
-            _sites_hint(["ra.co", "eventim.de"])
-            == " Prefer results from: ra.co, eventim.de."
-        )
+def test_sites_hint_user_sites():
+    assert (
+        _sites_hint(["ra.co", "eventim.de"])
+        == " Prefer results from: ra.co, eventim.de."
+    )
 
 
-def test_sites_hint_config_only():
-    with patch("app.claude_extractor.settings") as mock:
-        mock.search_sites = "ticketmaster.de"
-        assert _sites_hint([]) == " Prefer results from: ticketmaster.de."
-
-
-def test_sites_hint_merges_config_and_user():
-    with patch("app.claude_extractor.settings") as mock:
-        mock.search_sites = "ticketmaster.de"
-        result = _sites_hint(["ra.co"])
-        assert result == " Prefer results from: ticketmaster.de, ra.co."
+def test_sites_hint_truncates_at_8():
+    sites = [f"site{i}.com" for i in range(10)]
+    result = _sites_hint(sites)
+    assert result.count("site") == 8
