@@ -388,6 +388,9 @@ input:focus {
   gap: 0.5rem;
 }
 .switch-track {
+  display: inline-block;
+  -webkit-appearance: none;
+  appearance: none;
   position: relative;
   width: 2.5rem;
   height: 1.375rem;
