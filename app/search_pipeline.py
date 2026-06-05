@@ -9,6 +9,7 @@ import httpx
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from .claude_extractor import discover_sites, extract_events, search_and_extract_events
+from .perplexity_extractor import search_events as sonar_search_events
 from .config import settings
 from .constants import MAX_SEARCH_SITES
 from .database import SessionLocal
@@ -44,7 +45,7 @@ _STREAMED_LOGGERS = ("pipeline", "claude", "email")
 _user_locks: dict[int, asyncio.Lock] = {}
 _INTER_TERM_DELAY_SECONDS = 15
 _INTER_DISCOVERY_DELAY_SECONDS = 5
-_BRAVE_FALLBACK_DELAY_SECONDS = 20
+_ENGINE_FALLBACK_DELAY_SECONDS = 20
 
 
 class _QueueLogHandler(logging.Handler):
@@ -115,21 +116,45 @@ async def _brave_search_and_extract(query: str, user_sites: list[str]) -> list[d
     return events
 
 
+async def _run_engine(
+    engine: str, term: str, location: str, year: int, user_sites: list[str]
+) -> list[dict]:
+    if engine == "claude":
+        return await search_and_extract_events(term, location, year, user_sites)
+    if engine == "brave_claude":
+        if not settings.brave_api_key:
+            log.warning(
+                "Engine 'brave_claude' configured but BRAVE_API_KEY not set, skipping"
+            )
+            return []
+        return await _brave_search_and_extract(f"{term} {location} {year}", user_sites)
+    if engine == "sonar":
+        if not settings.perplexity_api_key:
+            log.warning(
+                "Engine 'sonar' configured but PERPLEXITY_API_KEY not set, skipping"
+            )
+            return []
+        return await sonar_search_events(term, location, year, user_sites)
+    log.warning("Unknown search engine '%s', skipping", engine)
+    return []
+
+
 async def _search_events(
     term: str, location: str, year: int, user_sites: list[str]
 ) -> list[dict]:
-    if settings.search_mode != "claude":
-        return await _brave_search_and_extract(f"{term} {location} {year}", user_sites)
-    events = await search_and_extract_events(term, location, year, user_sites)
-    if not events and settings.brave_api_key:
-        log.info(
-            "Claude found nothing, falling back to Brave for '%s %s'", term, location
-        )
-        await asyncio.sleep(_BRAVE_FALLBACK_DELAY_SECONDS)
-        events = await _brave_search_and_extract(
-            f"{term} {location} {year}", user_sites
-        )
-    return events
+    engines = [e.strip() for e in settings.search_mode.split(",") if e.strip()]
+    for i, engine in enumerate(engines):
+        if i > 0:
+            await asyncio.sleep(_ENGINE_FALLBACK_DELAY_SECONDS)
+        events = await _run_engine(engine, term, location, year, user_sites)
+        if events:
+            log.info(
+                "Engine '%s' returned %d event(s) for '%s'", engine, len(events), term
+            )
+            return events
+        if i < len(engines) - 1:
+            log.info("Engine '%s' found nothing for '%s', trying next", engine, term)
+    return []
 
 
 async def _process_user(user: User, db) -> None:

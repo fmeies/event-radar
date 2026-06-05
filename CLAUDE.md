@@ -35,9 +35,11 @@ app/
 - **Deduplication**: SHA-256 hash of `user_id + name + date + venue` stored in `SeenEvent`. Insert uses `INSERT OR IGNORE` (`on_conflict_do_nothing()`) to survive any race conditions.
 - **Event filtering**: Events are dropped if date is missing/unparseable, date is in the past, or city doesn't match the user's location. See `_is_valid_event()` in `search_pipeline.py`.
 - **Event types**: Prompts cover concerts, readings, lectures, talks, signings, and all other public appearances — not concerts only.
-- **Search mode** (`SEARCH_MODE` env var):
-  - `claude` (default) — Claude uses the `web_search_20250305` built-in tool to search and extract in one step. Falls back to Brave if Claude returns 0 results and `BRAVE_API_KEY` is set.
-  - `brave` — Brave Search fetches snippets, Claude extracts structured data from them.
+- **Search mode** (`SEARCH_MODE` env var): comma-separated engine chain, tried in order until one returns results. Available engines:
+  - `claude` — Claude web search + Claude extraction (Anthropic only)
+  - `brave_claude` — Brave Search fetches snippets, Claude extracts structured data (needs `BRAVE_API_KEY` + `ANTHROPIC_API_KEY`)
+  - `sonar` — Perplexity Sonar search + extraction (needs `PERPLEXITY_API_KEY`)
+  - Examples: `claude,brave_claude` (default) | `sonar,claude,brave_claude` | `brave_claude`
 - **Search sites**: per-user list of preferred domains (max 8). Passed as a soft hint in the prompt. Use the **Discover** button to let Claude suggest sites per watch list term; results are shown as checkboxes and only written to DB after the user clicks "Apply selected".
 - **Pipeline concurrency**: per-user `asyncio.Lock` in `_user_locks` prevents duplicate runs. Lock lives in `run_for_user()` so both the SSE stream and background task share it. Discovery uses the same lock.
 - **Live log streaming**: `GET /pipeline/stream` and `GET /sites/discover/stream` are SSE endpoints. They capture log output via `_QueueLogHandler` and stream it to the dashboard in real time. The discover stream yields a final `{"type":"result","sites":[...]}` message before closing so the JS can show a selection UI. Apache must be configured with `flushpackets=on` for SSE to work through the proxy.

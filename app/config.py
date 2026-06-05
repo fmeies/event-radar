@@ -1,5 +1,3 @@
-from typing import Literal
-
 from pydantic_settings import BaseSettings
 
 
@@ -7,6 +5,7 @@ class Settings(BaseSettings):
     secret_key: str
     anthropic_api_key: str
     brave_api_key: str = ""
+    perplexity_api_key: str = ""
     database_url: str = "sqlite:////data/event_radar.db"
     smtp_host: str
     smtp_port: int = 587
@@ -19,7 +18,7 @@ class Settings(BaseSettings):
     admin_email: str = (
         ""  # receives new-registration notifications; defaults to from_email if empty
     )
-    search_mode: Literal["brave", "claude"] = "claude"
+    search_mode: str = "claude,brave_claude"
 
     model_config = {"env_file": ".env"}
 

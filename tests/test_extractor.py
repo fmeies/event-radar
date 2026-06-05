@@ -30,6 +30,11 @@ def test_empty_array():
     assert _parse_json("[]", "test") == []
 
 
+def test_strips_prose_before_fenced_json():
+    raw = f"Here are the events I found:\n\n```json\n{EVENTS_JSON}\n```"
+    assert _parse_json(raw, "test") == EVENTS
+
+
 def test_invalid_json_returns_empty():
     assert _parse_json("not json", "test") == []
 
