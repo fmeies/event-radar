@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Optional
 
 import anthropic
@@ -40,14 +41,21 @@ If no events are found, return [].
 No markdown, no comments — only the JSON array."""
 
 
+_FENCE_RE = re.compile(r"```(?:json)?\s*\n(.*?)\n```", re.DOTALL)
+
+
 def _parse_json(raw: str, context: str) -> list[dict]:
-    if raw.startswith("```"):
-        lines = raw.splitlines()
-        raw = "\n".join(lines[1:])
-        if raw.endswith("```"):
-            raw = raw[:-3].strip()
+    candidate = raw.strip()
+    fenced = _FENCE_RE.search(candidate)
+    if fenced:
+        candidate = fenced.group(1).strip()
+    elif not candidate.startswith(("[", "{")):
+        # Prose before bare JSON — advance to first array or object
+        m = re.search(r"[\[{]", candidate)
+        if m:
+            candidate = candidate[m.start():]
     try:
-        return json.loads(raw)
+        return json.loads(candidate)
     except (json.JSONDecodeError, IndexError, AttributeError) as exc:
         log.warning(
             "Failed to parse Claude response for '%s': %s | %s", context, exc, raw[:200]
@@ -97,7 +105,7 @@ async def extract_events(
     try:
         response = await _client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=2048,
+            max_tokens=1024,
             system=[
                 {
                     "type": "text",
@@ -131,7 +139,7 @@ async def search_and_extract_events(
     try:
         response = await _client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=4096,
+            max_tokens=1024,
             tools=[{"type": "web_search_20250305", "name": "web_search"}],
             system=[
                 {

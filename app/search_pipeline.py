@@ -44,6 +44,7 @@ _STREAMED_LOGGERS = ("pipeline", "claude", "email")
 _user_locks: dict[int, asyncio.Lock] = {}
 _INTER_TERM_DELAY_SECONDS = 15
 _INTER_DISCOVERY_DELAY_SECONDS = 5
+_BRAVE_FALLBACK_DELAY_SECONDS = 20
 
 
 class _QueueLogHandler(logging.Handler):
@@ -74,7 +75,7 @@ async def _brave_search(query: str) -> list[dict]:
     async with httpx.AsyncClient(timeout=30) as client:
         try:
             r = await client.get(
-                BRAVE_URL, headers=headers, params={"q": query, "count": 10}
+                BRAVE_URL, headers=headers, params={"q": query, "count": 5}
             )
             r.raise_for_status()
             results = r.json().get("web", {}).get("results", [])
@@ -124,6 +125,7 @@ async def _search_events(
         log.info(
             "Claude found nothing, falling back to Brave for '%s %s'", term, location
         )
+        await asyncio.sleep(_BRAVE_FALLBACK_DELAY_SECONDS)
         events = await _brave_search_and_extract(
             f"{term} {location} {year}", user_sites
         )
