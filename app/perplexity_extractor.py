@@ -2,27 +2,13 @@ from typing import Optional
 
 import httpx
 
-from .claude_extractor import _parse_json, _sites_hint
+from .claude_extractor import _SYSTEM_SEARCH as _SYSTEM, _parse_json, _sites_hint
 from .config import settings
 from .logger import get_logger
 
 log = get_logger("sonar")
 
 _API_URL = "https://api.perplexity.ai/chat/completions"
-
-_SYSTEM = """\
-You search for upcoming public events and appearances and return structured data.
-Events include concerts, readings, lectures, talks, signings, and any other public appearances.
-Return exclusively a JSON array. Each object contains:
-- "name": artist, band, author, or speaker name (string)
-- "date": event date, ISO format YYYY-MM-DD (string or null)
-- "venue": venue or hall name (string or null)
-- "city": city (string or null)
-- "url": direct URL to the event or ticket page (string or null)
-
-Only include confirmed upcoming events with a known date and city.
-If no events are found, return [].
-No markdown, no comments — only the JSON array."""
 
 
 def _user_message(term: str, location: str, year: int, user_sites: list[str]) -> str:

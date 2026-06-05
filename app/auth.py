@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from itsdangerous import URLSafeTimedSerializer
+from itsdangerous import BadData, URLSafeTimedSerializer
 from jose import JWTError, jwt
 
 from .config import settings
@@ -44,8 +44,6 @@ def generate_verification_token(email: str) -> str:
 
 
 def verify_email_token(token: str) -> str | None:
-    from itsdangerous import BadData
-
     try:
         return _serializer.loads(
             token, salt="email-verify", max_age=VERIFY_TOKEN_MAX_AGE

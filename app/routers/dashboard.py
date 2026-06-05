@@ -1,4 +1,5 @@
 import json
+import re
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import (
@@ -10,18 +11,16 @@ from fastapi.responses import (
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-import re
-
 from ..config import settings
 from ..constants import MAX_SEARCH_SITES, MAX_SEARCH_TERMS
-
-_DOMAIN_RE = re.compile(r"^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z0-9\-]+)+$")
 from ..database import get_db
 from ..deps import get_current_user
 from ..limiter import limiter
 from ..models import SearchSite, SearchTerm, User
 from ..search_pipeline import run_discovery_for_user_streamed, run_for_user_streamed
 from ..templating import templates
+
+_DOMAIN_RE = re.compile(r"^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z0-9\-]+)+$")
 
 
 class _ApplySitesRequest(BaseModel):
