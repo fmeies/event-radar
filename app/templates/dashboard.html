@@ -47,14 +47,17 @@
 
     <!-- Schedule info -->
     <div class="info-banner" style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
-      <span>
-        <strong>Daily search:</strong> Every day at 08:00, all watch list entries are checked for
-        new events. Already-reported events are not sent again.
-      </span>
+      <span><strong>Daily search:</strong> Every day at 08:00, all watch list entries are checked for
+      new events. Already-reported events are not sent again.</span>
       <form method="post" action="{{ root_path }}/search/toggle" style="flex-shrink:0;">
-        <button type="submit" class="toggle-pill {% if user.search_enabled %}toggle-pill-on{% else %}toggle-pill-off{% endif %}">
-          {% if user.search_enabled %}✓ Enabled{% else %}○ Paused{% endif %}
-        </button>
+        <div class="switch-wrap">
+          <button type="submit"
+                  class="switch-track {% if user.search_enabled %}switch-track-on{% else %}switch-track-off{% endif %}"
+                  title="{% if user.search_enabled %}Pause daily search{% else %}Enable daily search{% endif %}">
+            <span class="switch-thumb"></span>
+          </button>
+          <span class="switch-label">{% if user.search_enabled %}Active{% else %}Paused{% endif %}</span>
+        </div>
       </form>
     </div>
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from ..auth import (
@@ -20,11 +20,7 @@ from ..limiter import limiter
 from ..logger import get_logger
 from ..models import User
 from ..templating import templates
-
-
-def _redir(path: str, status_code: int = 303) -> RedirectResponse:
-    return RedirectResponse(url=f"{settings.root_path}{path}", status_code=status_code)
-
+from ..utils import redir as _redir
 
 router = APIRouter()
 log = get_logger("auth")

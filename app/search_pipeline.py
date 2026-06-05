@@ -157,43 +157,68 @@ async def _search_events(
     return []
 
 
-async def _process_user(user: User, db) -> None:
-    if not user.search_enabled:
-        log.info("Skipping %s — search disabled", user.email)
-        return
-    if not user.location:
-        log.info("Skipping %s — no location set", user.email)
-        return
-    if not user.search_terms:
-        log.info("Skipping %s — no search terms", user.email)
-        return
+async def _process_user(user_id: int) -> None:
+    # Phase 1: load user data in a short-lived session
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return
+        if not user.search_enabled:
+            log.info("Skipping %s — search disabled", user.email)
+            return
+        if not user.location:
+            log.info("Skipping %s — no location set", user.email)
+            return
+        if not user.search_terms:
+            log.info("Skipping %s — no search terms", user.email)
+            return
+        email = user.email
+        location = user.location
+        terms = [t.term for t in user.search_terms]
+        user_sites = [s.site for s in user.search_sites]
+    finally:
+        db.close()
 
+    # Phase 2: API work — no DB session held during long-running calls
     year = datetime.now().year
-    new_events: list[dict] = []
-    user_sites = [s.site for s in user.search_sites]
-
-    for i, term in enumerate(user.search_terms):
+    candidates: list[dict] = []
+    for i, term in enumerate(terms):
         if i > 0:
             await asyncio.sleep(_INTER_TERM_DELAY_SECONDS)
-        events = await _search_events(term.term, user.location, year, user_sites)
-
-        for event in events:
-            if not _is_valid_event(event, user.location):
+        for event in await _search_events(term, location, year, user_sites):
+            if _is_valid_event(event, location):
+                candidates.append(event)
+            else:
                 log.debug(
                     "Filtered out: %s | date=%s city=%s",
                     event.get("name"),
                     event.get("date"),
                     event.get("city"),
                 )
-                continue
 
-            h = _event_hash(user.id, event)
-            already_seen = (
+    if not candidates:
+        log.info("No new events for %s", email)
+        return
+
+    await _dedup_and_notify(user_id, email, location, candidates)
+
+
+async def _dedup_and_notify(
+    user_id: int, email: str, location: str, candidates: list[dict]
+) -> None:
+    """Persist new events to the DB and send the notification email."""
+    db = SessionLocal()
+    try:
+        to_notify: list[dict] = []
+        for event in candidates:
+            h = _event_hash(user_id, event)
+            exists = (
                 db.query(SeenEvent)
-                .filter(SeenEvent.user_id == user.id, SeenEvent.event_hash == h)
+                .filter(SeenEvent.user_id == user_id, SeenEvent.event_hash == h)
                 .first()
             )
-            if already_seen:
+            if exists:
                 log.debug("Already seen: %s (%s)", event.get("name"), event.get("date"))
             else:
                 log.info(
@@ -202,24 +227,25 @@ async def _process_user(user: User, db) -> None:
                     event.get("date"),
                     event.get("venue"),
                 )
-                new_events.append(event)
+                to_notify.append(event)
                 db.execute(
                     sqlite_insert(SeenEvent)
                     .values(
-                        user_id=user.id,
+                        user_id=user_id,
                         event_hash=h,
                         created_at=datetime.now(timezone.utc),
                     )
                     .on_conflict_do_nothing()
                 )
+        db.commit()
+    finally:
+        db.close()
 
-    db.commit()
-
-    if new_events:
-        await send_event_notification(user.email, new_events, user.location)
-        log.info("%d new event(s) sent to %s", len(new_events), user.email)
+    if to_notify:
+        await send_event_notification(email, to_notify, location)
+        log.info("%d new event(s) sent to %s", len(to_notify), email)
     else:
-        log.info("No new events for %s", user.email)
+        log.info("No new events for %s", email)
 
 
 async def run_pipeline() -> None:
@@ -227,19 +253,16 @@ async def run_pipeline() -> None:
     try:
         users = db.query(User).filter(User.is_verified.is_(True)).all()
         log.info("Starting pipeline for %d user(s)", len(users))
-        for user in users:
-            try:
-                log.info(
-                    "Processing %s (location: %s, terms: %d)",
-                    user.email,
-                    user.location,
-                    len(user.search_terms),
-                )
-                await _process_user(user, db)
-            except Exception as exc:
-                log.error("Failed for %s: %s", user.email, exc, exc_info=True)
+        user_ids = [(u.id, u.email) for u in users]
     finally:
         db.close()
+
+    for user_id, email in user_ids:
+        try:
+            log.info("Processing %s", email)
+            await _process_user(user_id)
+        except Exception as exc:
+            log.error("Failed for %s: %s", email, exc, exc_info=True)
 
 
 async def run_for_user(user_id: int) -> None:
@@ -259,14 +282,8 @@ async def _run_for_user(user_id: int) -> None:
         return
 
     async with lock:
-        db = SessionLocal()
-        try:
-            user = db.query(User).filter(User.id == user_id).first()
-            if user:
-                log.info("Manual pipeline run for %s", user.email)
-                await _process_user(user, db)
-        finally:
-            db.close()
+        log.info("Manual pipeline run for user %d", user_id)
+        await _process_user(user_id)
 
 
 async def _collect_sites_for_user(user: User) -> list[dict]:

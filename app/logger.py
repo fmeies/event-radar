@@ -13,9 +13,14 @@ def setup_logging() -> None:
     handler.setFormatter(formatter)
 
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
+    root.setLevel(logging.INFO)
     root.handlers.clear()
     root.addHandler(handler)
+
+    # App loggers stay at DEBUG so the SSE stream and file logs retain detail.
+    # Root at INFO keeps third-party libs quiet without needing per-lib overrides.
+    for name in ("pipeline", "claude", "sonar", "extract", "email", "auth", "web"):
+        logging.getLogger(name).setLevel(logging.DEBUG)
 
     # Apply our formatter to uvicorn's loggers so their lines also get timestamps
     for name in ("uvicorn", "uvicorn.access", "uvicorn.error"):
@@ -23,7 +28,7 @@ def setup_logging() -> None:
         lg.handlers.clear()
         lg.propagate = True
 
-    # Reduce noise from third-party libs
+    # Belt-and-suspenders: suppress known chatty libs even though root is now INFO
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("anthropic").setLevel(logging.WARNING)

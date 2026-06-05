@@ -5,13 +5,11 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import (
     HTMLResponse,
     JSONResponse,
-    RedirectResponse,
     StreamingResponse,
 )
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..config import settings
 from ..constants import MAX_SEARCH_SITES, MAX_SEARCH_TERMS
 from ..database import get_db
 from ..deps import get_current_user
@@ -19,16 +17,13 @@ from ..limiter import limiter
 from ..models import SearchSite, SearchTerm, User
 from ..search_pipeline import run_discovery_for_user_streamed, run_for_user_streamed
 from ..templating import templates
+from ..utils import redir as _redir
 
 _DOMAIN_RE = re.compile(r"^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z0-9\-]+)+$")
 
 
 class _ApplySitesRequest(BaseModel):
     sites: list[str]
-
-
-def _redir(path: str, status_code: int = 303) -> RedirectResponse:
-    return RedirectResponse(url=f"{settings.root_path}{path}", status_code=status_code)
 
 
 router = APIRouter()
