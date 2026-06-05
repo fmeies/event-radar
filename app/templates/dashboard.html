@@ -49,7 +49,7 @@
     <div class="info-banner" style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
       <span><strong>Daily search:</strong> Every day at 08:00, all watch list entries are checked for
       new events. Already-reported events are not sent again.</span>
-      <form method="post" action="{{ root_path }}/search/toggle" style="flex-shrink:0;">
+      <form id="search-toggle-form" method="post" action="{{ root_path }}/search/toggle" style="flex-shrink:0;">
         <div class="switch-wrap">
           <button type="submit"
                   class="switch-track {% if user.search_enabled %}switch-track-on{% else %}switch-track-off{% endif %}"
@@ -239,6 +239,22 @@
       '🔎 Discover',
       showDiscoverResults
     );
+  });
+
+  document.getElementById('search-toggle-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const resp = await fetch(this.action, {
+      method: 'POST',
+      headers: { 'x-requested-with': 'fetch' }
+    });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const track = this.querySelector('.switch-track');
+    const label = this.querySelector('.switch-label');
+    track.classList.toggle('switch-track-on', data.search_enabled);
+    track.classList.toggle('switch-track-off', !data.search_enabled);
+    track.title = data.search_enabled ? 'Pause daily search' : 'Enable daily search';
+    label.textContent = data.search_enabled ? 'Active' : 'Paused';
   });
 
   document.getElementById('discover-apply-btn').addEventListener('click', async function () {

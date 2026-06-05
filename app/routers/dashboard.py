@@ -260,6 +260,7 @@ async def apply_discovered_sites(
 
 @router.post("/search/toggle")
 async def toggle_search(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -269,6 +270,8 @@ async def toggle_search(
     user.search_enabled = not user.search_enabled
     db.commit()
 
+    if request.headers.get("x-requested-with") == "fetch":
+        return JSONResponse({"search_enabled": bool(user.search_enabled)})
     return _redir("/dashboard")
 
 
