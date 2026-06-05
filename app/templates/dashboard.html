@@ -243,18 +243,19 @@
 
   document.getElementById('search-toggle-form').addEventListener('submit', async function (e) {
     e.preventDefault();
-    const resp = await fetch(this.action, {
-      method: 'POST',
-      headers: { 'x-requested-with': 'fetch' }
-    });
-    if (!resp.ok) return;
-    const data = await resp.json();
-    const track = this.querySelector('.switch-track');
-    const label = this.querySelector('.switch-label');
-    track.classList.toggle('switch-track-on', data.search_enabled);
-    track.classList.toggle('switch-track-off', !data.search_enabled);
-    track.title = data.search_enabled ? 'Pause daily search' : 'Enable daily search';
-    label.textContent = data.search_enabled ? 'Active' : 'Paused';
+    try {
+      const resp = await fetch(this.action + '?json=1', { method: 'POST' });
+      if (!resp.ok) { window.location.reload(); return; }
+      const data = await resp.json();
+      const track = this.querySelector('.switch-track');
+      const label = this.querySelector('.switch-label');
+      track.classList.toggle('switch-track-on', data.search_enabled);
+      track.classList.toggle('switch-track-off', !data.search_enabled);
+      track.title = data.search_enabled ? 'Pause daily search' : 'Enable daily search';
+      label.textContent = data.search_enabled ? 'Active' : 'Paused';
+    } catch (_) {
+      window.location.reload();
+    }
   });
 
   document.getElementById('discover-apply-btn').addEventListener('click', async function () {

@@ -270,7 +270,7 @@ async def toggle_search(
     user.search_enabled = not user.search_enabled
     db.commit()
 
-    if request.headers.get("x-requested-with") == "fetch":
+    if request.query_params.get("json") == "1":
         return JSONResponse({"search_enabled": bool(user.search_enabled)})
     return _redir("/dashboard")
 
