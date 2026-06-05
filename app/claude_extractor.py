@@ -1,5 +1,4 @@
 import json
-import re
 from typing import Optional
 
 import anthropic
@@ -7,12 +6,13 @@ from anthropic.types import TextBlock
 
 from .config import settings
 from .logger import get_logger
+from .prompts import SYSTEM_SEARCH, parse_json, search_user_message, sites_hint
 
 log = get_logger("claude")
 
 _client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
-_SYSTEM = """\
+_SYSTEM_BRAVE = """\
 You extract structured event data from web search result snippets.
 Events include concerts, readings, lectures, talks, signings, and any other public appearances.
 Return exclusively a JSON array. Each object contains:
@@ -26,43 +26,6 @@ Only include events that are thematically relevant to the search term.
 If no events are recognisable, return [].
 No markdown, no comments — only the JSON array."""
 
-_SYSTEM_SEARCH = """\
-You search for upcoming public events and appearances and return structured data.
-Events include concerts, readings, lectures, talks, signings, and any other public appearances.
-Return exclusively a JSON array. Each object contains:
-- "name": artist, band, author, or speaker name (string)
-- "date": event date, ISO format YYYY-MM-DD (string or null)
-- "venue": venue or hall name (string or null)
-- "city": city (string or null)
-- "url": direct URL to the event or ticket page (string or null)
-
-Only include confirmed upcoming events with a known date and city.
-If no events are found, return [].
-No markdown, no comments — only the JSON array."""
-
-
-_FENCE_RE = re.compile(r"```(?:json)?\s*\n(.*?)\n```", re.DOTALL)
-
-
-def _parse_json(raw: str, context: str) -> list[dict]:
-    candidate = raw.strip()
-    fenced = _FENCE_RE.search(candidate)
-    if fenced:
-        candidate = fenced.group(1).strip()
-    elif not candidate.startswith(("[", "{")):
-        # Prose before bare JSON — advance to first array or object
-        m = re.search(r"[\[{]", candidate)
-        if m:
-            candidate = candidate[m.start() :]
-    try:
-        return json.loads(candidate)
-    except (json.JSONDecodeError, IndexError, AttributeError) as exc:
-        log.warning(
-            "Failed to parse Claude response for '%s': %s | %s", context, exc, raw[:200]
-        )
-        return []
-
-
 _SYSTEM_DISCOVER = """\
 You find the best websites to search for upcoming public events and appearances by a given person or group.
 Events include concerts, readings, lectures, talks, signings, and other public appearances.
@@ -75,24 +38,8 @@ Any response that is not a JSON array is wrong."""
 _PROMPT_CACHE_HEADER = {"anthropic-beta": "prompt-caching-2024-07-31"}
 
 
-def _sites_hint(user_sites: list[str]) -> str:
-    if not user_sites:
-        return ""
-    return " Prefer results from: " + ", ".join(user_sites[:8]) + "."
-
-
 def _user_message_brave(query: str, snippets: str, user_sites: list[str]) -> str:
-    return f"Search term: {query}{_sites_hint(user_sites)}\n\nSearch results:\n{snippets[:8000]}"
-
-
-def _user_message_search(
-    term: str, location: str, year: int, user_sites: list[str]
-) -> str:
-    return (
-        f"Search for upcoming public events and appearances by {term} in {location} in {year}."
-        f" Include concerts, readings, lectures, talks, and signings."
-        f"{_sites_hint(user_sites)} Return ONLY a JSON array with the events you find."
-    )
+    return f"Search term: {query}{sites_hint(user_sites)}\n\nSearch results:\n{snippets[:8000]}"
 
 
 async def extract_events(
@@ -109,7 +56,7 @@ async def extract_events(
             system=[
                 {
                     "type": "text",
-                    "text": _SYSTEM,
+                    "text": _SYSTEM_BRAVE,
                     "cache_control": {"type": "ephemeral"},
                 }
             ],
@@ -127,7 +74,7 @@ async def extract_events(
 
     raw = next((b.text for b in response.content if isinstance(b, TextBlock)), "")
     log.debug("Claude raw response for '%s': %s", query, raw[:500])
-    return _parse_json(raw, query)
+    return parse_json(raw, query)
 
 
 async def search_and_extract_events(
@@ -144,16 +91,14 @@ async def search_and_extract_events(
             system=[
                 {
                     "type": "text",
-                    "text": _SYSTEM_SEARCH,
+                    "text": SYSTEM_SEARCH,
                     "cache_control": {"type": "ephemeral"},
                 }
             ],
             messages=[
                 {
                     "role": "user",
-                    "content": _user_message_search(
-                        term, location, year, user_sites or []
-                    ),
+                    "content": search_user_message(term, location, year, user_sites),
                 }
             ],
             extra_headers=_PROMPT_CACHE_HEADER,
@@ -171,7 +116,7 @@ async def search_and_extract_events(
         return []
 
     log.debug("Claude web search response for '%s': %s", label, raw[:500])
-    return _parse_json(raw, label)
+    return parse_json(raw, label)
 
 
 async def discover_sites(term: str) -> list[str]:

@@ -1,4 +1,4 @@
-from app.claude_extractor import _parse_json, _sites_hint
+from app.prompts import parse_json as _parse_json, sites_hint as _sites_hint
 
 EVENTS = [
     {
