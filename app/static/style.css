@@ -381,35 +381,32 @@ input:focus {
   line-height: 1.55;
 }
 
-/* ── Toggle switch ── */
-.switch-wrap {
+/* ── Active / Paused toggle (plain form button) ── */
+.toggle {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
-.switch-check {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-}
-.switch-track {
-  display: inline-block;
+.toggle__track {
   position: relative;
+  display: inline-block;
   width: 2.5rem;
   height: 1.375rem;
-  border-radius: 999px;
-  border: none;
-  cursor: pointer;
-  padding: 0;
   flex-shrink: 0;
+  border-radius: 999px;
   background: #94a3b8;
-  touch-action: manipulation;
   transition: background 0.2s;
 }
-.switch-check:checked + .switch-track { background: var(--primary); }
-.switch-thumb {
+.toggle--on .toggle__track { background: var(--primary); }
+.toggle__thumb {
   position: absolute;
   top: 0.1875rem;
   left: 0.1875rem;
@@ -419,14 +416,18 @@ input:focus {
   background: #fff;
   box-shadow: var(--shadow-sm);
   transition: transform 0.2s;
-  pointer-events: none;
 }
-.switch-check:checked + .switch-track .switch-thumb { transform: translateX(1.3125rem); }
-.switch-label {
+.toggle--on .toggle__thumb { transform: translateX(1.125rem); }
+.toggle__label {
   font-size: 0.8125rem;
   color: var(--text-muted);
   white-space: nowrap;
   min-width: 3rem;
+  text-align: left;
+}
+.toggle:focus-visible .toggle__track {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 /* ── Empty state ── */
