@@ -49,16 +49,15 @@
     <div class="info-banner" style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
       <span><strong>Daily search:</strong> Every day at 08:00, all watch list entries are checked for
       new events. Already-reported events are not sent again.</span>
-      <form id="search-toggle-form" method="post" action="{{ root_path }}/search/toggle" style="flex-shrink:0;">
-        <div class="switch-wrap">
-          <button type="submit"
-                  class="switch-track {% if user.search_enabled %}switch-track-on{% else %}switch-track-off{% endif %}"
-                  title="{% if user.search_enabled %}Pause daily search{% else %}Enable daily search{% endif %}">
-            <span class="switch-thumb"></span>
-          </button>
-          <span class="switch-label">{% if user.search_enabled %}Active{% else %}Paused{% endif %}</span>
-        </div>
-      </form>
+      <div class="switch-wrap" style="flex-shrink:0;">
+        <button type="button" id="search-toggle-btn"
+                class="switch-track {% if user.search_enabled %}switch-track-on{% else %}switch-track-off{% endif %}"
+                data-url="{{ root_path }}/search/toggle"
+                title="{% if user.search_enabled %}Pause daily search{% else %}Enable daily search{% endif %}">
+          <span class="switch-thumb"></span>
+        </button>
+        <span class="switch-label" id="search-toggle-label">{% if user.search_enabled %}Active{% else %}Paused{% endif %}</span>
+      </div>
     </div>
 
     <!-- Location -->
@@ -241,22 +240,28 @@
     );
   });
 
-  document.getElementById('search-toggle-form').addEventListener('submit', async function (e) {
-    e.preventDefault();
-    try {
-      const resp = await fetch(this.action + '?json=1', { method: 'POST' });
-      if (!resp.ok) { window.location.reload(); return; }
-      const data = await resp.json();
-      const track = this.querySelector('.switch-track');
-      const label = this.querySelector('.switch-label');
-      track.classList.toggle('switch-track-on', data.search_enabled);
-      track.classList.toggle('switch-track-off', !data.search_enabled);
-      track.title = data.search_enabled ? 'Pause daily search' : 'Enable daily search';
-      label.textContent = data.search_enabled ? 'Active' : 'Paused';
-    } catch (_) {
-      window.location.reload();
-    }
-  });
+  (function () {
+    var btn = document.getElementById('search-toggle-btn');
+    var label = document.getElementById('search-toggle-label');
+    var inFlight = false;
+    btn.addEventListener('click', async function () {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        var resp = await fetch(btn.dataset.url + '?json=1', { method: 'POST' });
+        if (!resp.ok) { window.location.reload(); return; }
+        var data = await resp.json();
+        btn.classList.toggle('switch-track-on', data.search_enabled);
+        btn.classList.toggle('switch-track-off', !data.search_enabled);
+        btn.title = data.search_enabled ? 'Pause daily search' : 'Enable daily search';
+        label.textContent = data.search_enabled ? 'Active' : 'Paused';
+      } catch (_) {
+        window.location.reload();
+      } finally {
+        inFlight = false;
+      }
+    });
+  }());
 
   document.getElementById('discover-apply-btn').addEventListener('click', async function () {
     const checked = document.querySelectorAll('#discover-checkboxes input[type=checkbox]:checked');
