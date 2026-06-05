@@ -53,7 +53,7 @@ def _parse_json(raw: str, context: str) -> list[dict]:
         # Prose before bare JSON — advance to first array or object
         m = re.search(r"[\[{]", candidate)
         if m:
-            candidate = candidate[m.start():]
+            candidate = candidate[m.start() :]
     try:
         return json.loads(candidate)
     except (json.JSONDecodeError, IndexError, AttributeError) as exc:
