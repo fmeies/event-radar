@@ -1,6 +1,13 @@
+import logging
+
 from datetime import date, timedelta
 
-from app.search_pipeline import _event_hash, _is_valid_event
+from app.search_pipeline import (
+    _QueueLogHandler,
+    _current_stream,
+    _event_hash,
+    _is_valid_event,
+)
 
 TOMORROW = (date.today() + timedelta(days=1)).isoformat()
 YESTERDAY = (date.today() - timedelta(days=1)).isoformat()
@@ -93,3 +100,58 @@ def test_hash_handles_missing_fields():
     event = {"name": "Nick Cave"}
     assert isinstance(_event_hash(1, event), str)
     assert len(_event_hash(1, event)) == 64
+
+
+# ── _QueueLogHandler stream isolation ────────────────────────────────────────
+
+
+class _StubQueue:
+    """Captures put_nowait calls — stands in for asyncio.Queue without a loop."""
+
+    def __init__(self):
+        self.items = []
+
+    def put_nowait(self, item):
+        self.items.append(item)
+
+
+def _record(message: str) -> logging.LogRecord:
+    return logging.LogRecord("pipeline", logging.INFO, __file__, 0, message, None, None)
+
+
+def test_handler_drops_records_without_active_stream():
+    queue = _StubQueue()
+    handler = _QueueLogHandler(queue, stream_id=object())
+
+    handler.emit(_record("hello"))
+
+    assert not queue.items
+
+
+def test_handler_captures_records_from_its_own_stream():
+    queue = _StubQueue()
+    stream_id = object()
+    handler = _QueueLogHandler(queue, stream_id)
+
+    token = _current_stream.set(stream_id)
+    try:
+        handler.emit(_record("mine"))
+    finally:
+        _current_stream.reset(token)
+
+    assert len(queue.items) == 1
+
+
+def test_handler_drops_records_from_a_foreign_stream():
+    # The core of the cross-user leak fix: a handler must ignore records emitted
+    # while a *different* stream is the active one.
+    queue = _StubQueue()
+    handler = _QueueLogHandler(queue, stream_id=object())
+
+    token = _current_stream.set(object())  # someone else's stream
+    try:
+        handler.emit(_record("not mine"))
+    finally:
+        _current_stream.reset(token)
+
+    assert not queue.items

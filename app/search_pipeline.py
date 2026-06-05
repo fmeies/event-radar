@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import hashlib
 import logging
 from datetime import date, datetime, timezone
@@ -47,16 +48,36 @@ _INTER_TERM_DELAY_SECONDS = 15
 _INTER_DISCOVERY_DELAY_SECONDS = 5
 _ENGINE_FALLBACK_DELAY_SECONDS = 20
 
+# Identifies the streaming task a log record originates from, so concurrent SSE
+# streams (e.g. two different users) never receive each other's log lines.
+_current_stream: contextvars.ContextVar[object | None] = contextvars.ContextVar(
+    "event_radar_stream", default=None
+)
+
+
+def _get_lock(user_id: int) -> asyncio.Lock:
+    lock = _user_locks.get(user_id)
+    if lock is None:
+        lock = _user_locks[user_id] = asyncio.Lock()
+    return lock
+
 
 class _QueueLogHandler(logging.Handler):
-    """Captures log records from app loggers into an asyncio.Queue for SSE streaming."""
+    """Captures log records into an asyncio.Queue for a single SSE stream.
 
-    def __init__(self, queue: asyncio.Queue) -> None:
+    Only records emitted from within the owning stream's task are kept; records
+    from other concurrent streams are dropped via the _current_stream context var.
+    """
+
+    def __init__(self, queue: asyncio.Queue, stream_id: object) -> None:
         super().__init__()
         self.queue = queue
+        self.stream_id = stream_id
         self.setFormatter(logging.Formatter("%(levelname)-8s  %(message)s"))
 
     def emit(self, record: logging.LogRecord) -> None:
+        if _current_stream.get() is not self.stream_id:
+            return
         try:
             self.queue.put_nowait(self.format(record))
         except Exception:
@@ -161,7 +182,7 @@ async def _process_user(user_id: int) -> None:
     # Phase 1: load user data in a short-lived session
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.id == user_id).first()
+        user = db.get(User, user_id)
         if not user:
             return
         if not user.search_enabled:
@@ -267,14 +288,7 @@ async def run_pipeline() -> None:
 
 async def run_for_user(user_id: int) -> None:
     """Public entry point for running the pipeline for a single user."""
-    await _run_for_user(user_id)
-
-
-async def _run_for_user(user_id: int) -> None:
-    if user_id not in _user_locks:
-        _user_locks[user_id] = asyncio.Lock()
-    lock = _user_locks[user_id]
-
+    lock = _get_lock(user_id)
     if lock.locked():
         log.info(
             "Pipeline already running for user %d, skipping duplicate run", user_id
@@ -319,28 +333,62 @@ async def _collect_sites_for_user(user: User) -> list[dict]:
     return results
 
 
-async def run_discovery_for_user_streamed(user_id: int):
-    """Yields log lines, then a final {"type":"result","sites":[...]} object for SSE streaming."""
-    if user_id not in _user_locks:
-        _user_locks[user_id] = asyncio.Lock()
+async def _stream_logs(work, queue_size: int):
+    """Run async `work()` as a task and yield its log lines for SSE streaming.
 
-    if _user_locks[user_id].locked():
-        yield "INFO      Pipeline is already running — please wait."
-        return
-
-    queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=200)
-    handler = _QueueLogHandler(queue)
-    discovered: list[dict] = []
+    A per-stream log handler is attached to the app loggers for the duration of
+    the task and removed when it finishes. The _current_stream context var, set
+    inside the task, isolates this stream's records from any other running stream.
+    """
+    stream_id = object()
+    queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=queue_size)
+    handler = _QueueLogHandler(queue, stream_id)
 
     for name in _STREAMED_LOGGERS:
         logging.getLogger(name).addHandler(handler)
 
     async def _run() -> None:
+        _current_stream.set(stream_id)
         try:
-            async with _user_locks[user_id]:
+            await work()
+        finally:
+            for name in _STREAMED_LOGGERS:
+                logging.getLogger(name).removeHandler(handler)
+            await queue.put(None)
+
+    asyncio.create_task(_run())
+
+    while True:
+        msg = await queue.get()
+        if msg is None:
+            break
+        yield msg
+
+
+async def run_for_user_streamed(user_id: int):
+    """Async generator that runs the pipeline and yields log lines for SSE streaming."""
+    if _get_lock(user_id).locked():
+        yield "INFO      Pipeline is already running — please wait."
+        return
+
+    async for msg in _stream_logs(lambda: run_for_user(user_id), queue_size=500):
+        yield msg
+
+
+async def run_discovery_for_user_streamed(user_id: int):
+    """Yields log lines, then a final {"type":"result","sites":[...]} object for SSE streaming."""
+    if _get_lock(user_id).locked():
+        yield "INFO      Pipeline is already running — please wait."
+        return
+
+    discovered: list[dict] = []
+
+    async def _discover() -> None:
+        try:
+            async with _get_lock(user_id):
                 db = SessionLocal()
                 try:
-                    user = db.query(User).filter(User.id == user_id).first()
+                    user = db.get(User, user_id)
                     if user:
                         log.info("Starting site discovery for %s", user.email)
                         discovered.extend(await _collect_sites_for_user(user))
@@ -348,49 +396,8 @@ async def run_discovery_for_user_streamed(user_id: int):
                     db.close()
         except Exception as exc:
             log.error("Discovery failed: %s", exc, exc_info=True)
-        finally:
-            for name in _STREAMED_LOGGERS:
-                logging.getLogger(name).removeHandler(handler)
-            await queue.put(None)
 
-    asyncio.create_task(_run())
-
-    while True:
-        msg = await queue.get()
-        if msg is None:
-            break
+    async for msg in _stream_logs(_discover, queue_size=200):
         yield msg
 
     yield {"type": "result", "sites": discovered}
-
-
-async def run_for_user_streamed(user_id: int):
-    """Async generator that runs the pipeline and yields log lines for SSE streaming."""
-    if user_id not in _user_locks:
-        _user_locks[user_id] = asyncio.Lock()
-
-    if _user_locks[user_id].locked():
-        yield "INFO      Pipeline is already running — please wait."
-        return
-
-    queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=500)
-    handler = _QueueLogHandler(queue)
-
-    for name in _STREAMED_LOGGERS:
-        logging.getLogger(name).addHandler(handler)
-
-    async def _run() -> None:
-        try:
-            await _run_for_user(user_id)
-        finally:
-            for name in _STREAMED_LOGGERS:
-                logging.getLogger(name).removeHandler(handler)
-            await queue.put(None)
-
-    asyncio.create_task(_run())
-
-    while True:
-        msg = await queue.get()
-        if msg is None:
-            break
-        yield msg

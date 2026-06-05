@@ -1,17 +1,19 @@
 import json
 import re
+from typing import NamedTuple
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import (
     HTMLResponse,
     JSONResponse,
+    RedirectResponse,
     StreamingResponse,
 )
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..constants import MAX_SEARCH_SITES, MAX_SEARCH_TERMS
-from ..database import get_db
+from ..database import Base, get_db
 from ..deps import get_current_user
 from ..limiter import limiter
 from ..models import SearchSite, SearchTerm, User
@@ -32,6 +34,71 @@ _ERRORS = {
     "too_many_terms": f"You can track at most {MAX_SEARCH_TERMS} search terms.",
     "too_many_sites": f"You can add at most {MAX_SEARCH_SITES} search sites.",
 }
+
+
+class _SearchItemKind(NamedTuple):
+    """The per-user collection a CRUD helper operates on (search terms or sites)."""
+
+    model: type[Base]
+    field: str
+    limit: int
+    error_key: str
+
+
+_TERM_KIND = _SearchItemKind(SearchTerm, "term", MAX_SEARCH_TERMS, "too_many_terms")
+_SITE_KIND = _SearchItemKind(SearchSite, "site", MAX_SEARCH_SITES, "too_many_sites")
+
+
+def _add_search_item(
+    db: Session, user: User, kind: _SearchItemKind, value: str
+) -> RedirectResponse:
+    """Add a per-user term/site if non-empty, under the limit, and not a duplicate."""
+    if not value:
+        return _redir("/dashboard")
+
+    count = db.query(kind.model).filter_by(user_id=user.id).count()
+    if count >= kind.limit:
+        return _redir(f"/dashboard?error={kind.error_key}")
+
+    duplicate = (
+        db.query(kind.model).filter_by(user_id=user.id, **{kind.field: value}).first()
+    )
+    if not duplicate:
+        db.add(kind.model(user_id=user.id, **{kind.field: value}))
+        db.commit()
+
+    return _redir("/dashboard")
+
+
+def _delete_search_item(
+    db: Session, user: User, kind: _SearchItemKind, item_id: int
+) -> RedirectResponse:
+    """Delete a per-user term/site, but only if it belongs to the user."""
+    item = db.query(kind.model).filter_by(id=item_id, user_id=user.id).first()
+    if item:
+        db.delete(item)
+        db.commit()
+
+    return _redir("/dashboard")
+
+
+def _sse_response(source) -> StreamingResponse:
+    """Wrap an async generator of log lines as a Server-Sent-Events response."""
+
+    async def event_stream():
+        async for line in source:
+            yield f"data: {json.dumps(line)}\n\n"
+        yield "data: null\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
@@ -68,24 +135,7 @@ async def add_term(
     if not user:
         return _redir("/login")
 
-    term = term.strip()
-    if not term:
-        return _redir("/dashboard")
-
-    count = db.query(SearchTerm).filter(SearchTerm.user_id == user.id).count()
-    if count >= MAX_SEARCH_TERMS:
-        return _redir("/dashboard?error=too_many_terms")
-
-    duplicate = (
-        db.query(SearchTerm)
-        .filter(SearchTerm.user_id == user.id, SearchTerm.term == term)
-        .first()
-    )
-    if not duplicate:
-        db.add(SearchTerm(user_id=user.id, term=term))
-        db.commit()
-
-    return _redir("/dashboard")
+    return _add_search_item(db, user, _TERM_KIND, term.strip())
 
 
 @router.post("/terms/{term_id}/delete")
@@ -97,16 +147,7 @@ async def delete_term(
     if not user:
         return _redir("/login")
 
-    term = (
-        db.query(SearchTerm)
-        .filter(SearchTerm.id == term_id, SearchTerm.user_id == user.id)
-        .first()
-    )
-    if term:
-        db.delete(term)
-        db.commit()
-
-    return _redir("/dashboard")
+    return _delete_search_item(db, user, _TERM_KIND, term_id)
 
 
 @router.post("/sites/add")
@@ -125,23 +166,7 @@ async def add_site(
         .removeprefix("http://")
         .rstrip("/")
     )
-    if not site:
-        return _redir("/dashboard")
-
-    count = db.query(SearchSite).filter(SearchSite.user_id == user.id).count()
-    if count >= MAX_SEARCH_SITES:
-        return _redir("/dashboard?error=too_many_sites")
-
-    duplicate = (
-        db.query(SearchSite)
-        .filter(SearchSite.user_id == user.id, SearchSite.site == site)
-        .first()
-    )
-    if not duplicate:
-        db.add(SearchSite(user_id=user.id, site=site))
-        db.commit()
-
-    return _redir("/dashboard")
+    return _add_search_item(db, user, _SITE_KIND, site)
 
 
 @router.post("/sites/{site_id}/delete")
@@ -153,16 +178,7 @@ async def delete_site(
     if not user:
         return _redir("/login")
 
-    site = (
-        db.query(SearchSite)
-        .filter(SearchSite.id == site_id, SearchSite.user_id == user.id)
-        .first()
-    )
-    if site:
-        db.delete(site)
-        db.commit()
-
-    return _redir("/dashboard")
+    return _delete_search_item(db, user, _SITE_KIND, site_id)
 
 
 @router.post("/location")
@@ -187,20 +203,7 @@ async def stream_pipeline(request: Request, user: User = Depends(get_current_use
     if not user:
         return _redir("/login")
 
-    async def event_stream():
-        async for line in run_for_user_streamed(user.id):
-            yield f"data: {json.dumps(line)}\n\n"
-        yield "data: null\n\n"
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-        },
-    )
+    return _sse_response(run_for_user_streamed(user.id))
 
 
 @router.get("/sites/discover/stream")
@@ -211,20 +214,7 @@ async def discover_sites_stream(
     if not user:
         return _redir("/login")
 
-    async def event_stream():
-        async for line in run_discovery_for_user_streamed(user.id):
-            yield f"data: {json.dumps(line)}\n\n"
-        yield "data: null\n\n"
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-        },
-    )
+    return _sse_response(run_discovery_for_user_streamed(user.id))
 
 
 @router.post("/sites/apply")

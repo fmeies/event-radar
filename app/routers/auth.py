@@ -28,6 +28,18 @@ log = get_logger("auth")
 MIN_PASSWORD_LENGTH = 8
 
 
+def _login_error(request: Request, message: str) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "login.html", {"request": request, "user": None, "error": message}
+    )
+
+
+def _register_error(request: Request, message: str) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "register.html", {"request": request, "user": None, "error": message}
+    )
+
+
 @router.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request, user=Depends(get_current_user)):
     if user:
@@ -48,14 +60,7 @@ async def register(
     email = email.lower().strip()
 
     if len(password) < MIN_PASSWORD_LENGTH:
-        return templates.TemplateResponse(
-            "register.html",
-            {
-                "request": request,
-                "user": None,
-                "error": "Password must be at least 8 characters long.",
-            },
-        )
+        return _register_error(request, "Password must be at least 8 characters long.")
 
     if db.query(User).filter(User.email == email).first():
         # Don't reveal whether the address is already registered.
@@ -74,13 +79,8 @@ async def register(
         log.error("Failed to send verification email to %s: %s", email, exc)
         db.delete(new_user)
         db.commit()
-        return templates.TemplateResponse(
-            "register.html",
-            {
-                "request": request,
-                "user": None,
-                "error": "Could not send confirmation email. Please try again later.",
-            },
+        return _register_error(
+            request, "Could not send confirmation email. Please try again later."
         )
 
     try:
@@ -95,24 +95,14 @@ async def register(
 async def verify_email(request: Request, token: str, db: Session = Depends(get_db)):
     email = verify_email_token(token)
     if not email:
-        return templates.TemplateResponse(
-            "login.html",
-            {
-                "request": request,
-                "user": None,
-                "error": "This confirmation link is invalid or has expired.",
-            },
+        return _login_error(
+            request, "This confirmation link is invalid or has expired."
         )
 
     user = db.query(User).filter(User.email == email).first()
     if not user or user.verification_token != token:
-        return templates.TemplateResponse(
-            "login.html",
-            {
-                "request": request,
-                "user": None,
-                "error": "This confirmation link is invalid or has expired.",
-            },
+        return _login_error(
+            request, "This confirmation link is invalid or has expired."
         )
 
     user.is_verified = True
@@ -152,23 +142,11 @@ async def login(
     user = db.query(User).filter(User.email == email).first()
 
     if not user or not verify_password(password, user.password_hash):
-        return templates.TemplateResponse(
-            "login.html",
-            {
-                "request": request,
-                "user": None,
-                "error": "Invalid email address or password.",
-            },
-        )
+        return _login_error(request, "Invalid email address or password.")
 
     if not user.is_verified:
-        return templates.TemplateResponse(
-            "login.html",
-            {
-                "request": request,
-                "user": None,
-                "error": "Please confirm your email address before signing in.",
-            },
+        return _login_error(
+            request, "Please confirm your email address before signing in."
         )
 
     response = _redir("/dashboard")

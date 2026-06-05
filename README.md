@@ -15,6 +15,8 @@ A **Search now** button in the dashboard triggers the pipeline manually and stre
 
 A **Discover** button lets Claude suggest the best websites for each watch list entry. The user can then select which sites to add as preferred search sources.
 
+An **Active / Paused** toggle lets each user pause the daily search without deleting their watch list. Paused users are skipped by the 08:00 pipeline.
+
 ## Requirements
 
 - Docker + Docker Compose
@@ -40,7 +42,8 @@ The app is now available at `http://localhost:8000`.
 |---|---|---|
 | `SECRET_KEY` | ✅ | Random secret for JWT and email tokens. Generate with: `python3 -c "import secrets; print(secrets.token_hex(32))"` |
 | `ANTHROPIC_API_KEY` | ✅ | Anthropic API key |
-| `BRAVE_API_KEY` | | Brave Search API key — optional, used as fallback when `SEARCH_MODE=claude` |
+| `BRAVE_API_KEY` | | Brave Search API key — required for the `brave_claude` engine |
+| `PERPLEXITY_API_KEY` | | Perplexity API key — required for the `sonar` engine |
 | `DATABASE_URL` | | Default: `sqlite:////data/event_radar.db` |
 | `SMTP_HOST` | ✅ | SMTP server hostname |
 | `SMTP_PORT` | | Default: `587` (STARTTLS). Use `465` for SSL |
@@ -51,14 +54,19 @@ The app is now available at `http://localhost:8000`.
 | `BASE_URL` | ✅ | Public URL of this instance including path prefix — used in verification email links (e.g. `https://yourdomain.com/event-radar`) |
 | `ROOT_PATH` | | URL prefix when served under a sub-path (e.g. `/event-radar`). Leave empty for root. |
 | `SECURE_COOKIES` | | Set to `true` when serving over HTTPS |
-| `SEARCH_MODE` | | `claude` (default) or `brave`. See Search modes below. |
+| `SEARCH_MODE` | | Comma-separated engine chain. Default: `claude,brave_claude`. See Search modes below. |
 
 ### Search modes
 
-| Mode | Behaviour |
-|---|---|
-| `claude` | Claude uses its built-in web search to find and extract events in one step. Falls back to Brave if Claude returns no results and `BRAVE_API_KEY` is set. |
-| `brave` | Brave Search fetches result snippets, Claude extracts structured event data from them. |
+`SEARCH_MODE` is a comma-separated list of engines, tried in order until one returns results. This makes later engines act as fallbacks for earlier ones.
+
+| Engine | Behaviour | Requires |
+|---|---|---|
+| `claude` | Claude uses its built-in web search to find and extract events in one step. | `ANTHROPIC_API_KEY` |
+| `brave_claude` | Brave Search fetches result snippets, Claude extracts structured event data from them. | `BRAVE_API_KEY` + `ANTHROPIC_API_KEY` |
+| `sonar` | Perplexity Sonar searches and extracts events. | `PERPLEXITY_API_KEY` |
+
+Examples: `claude,brave_claude` (default) · `brave_claude` · `sonar,claude,brave_claude`
 
 ### Gmail SMTP
 

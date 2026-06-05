@@ -12,6 +12,9 @@ log = get_logger("claude")
 
 _client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
+_MODEL = "claude-haiku-4-5-20251001"
+_MAX_SNIPPET_CHARS = 8000
+
 _SYSTEM_BRAVE = """\
 You extract structured event data from web search result snippets.
 Events include concerts, readings, lectures, talks, signings, and any other public appearances.
@@ -35,11 +38,12 @@ Include the person's official website and at most 2–3 relevant event-listing o
 Maximum 5 domains total. Unknown persons → return [].
 Any response that is not a JSON array is wrong."""
 
-_PROMPT_CACHE_HEADER = {"anthropic-beta": "prompt-caching-2024-07-31"}
-
 
 def _user_message_brave(query: str, snippets: str, user_sites: list[str]) -> str:
-    return f"Search term: {query}{sites_hint(user_sites)}\n\nSearch results:\n{snippets[:8000]}"
+    return (
+        f"Search term: {query}{sites_hint(user_sites)}"
+        f"\n\nSearch results:\n{snippets[:_MAX_SNIPPET_CHARS]}"
+    )
 
 
 async def extract_events(
@@ -51,7 +55,7 @@ async def extract_events(
     )
     try:
         response = await _client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model=_MODEL,
             max_tokens=1024,
             system=[
                 {
@@ -66,7 +70,6 @@ async def extract_events(
                     "content": _user_message_brave(query, snippets, user_sites or []),
                 }
             ],
-            extra_headers=_PROMPT_CACHE_HEADER,
         )
     except Exception as exc:
         log.error("Claude API call failed for '%s': %s", query, exc, exc_info=True)
@@ -85,7 +88,7 @@ async def search_and_extract_events(
     log.info("Claude web search: '%s'", label)
     try:
         response = await _client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model=_MODEL,
             max_tokens=1024,
             tools=[{"type": "web_search_20250305", "name": "web_search"}],
             system=[
@@ -101,7 +104,6 @@ async def search_and_extract_events(
                     "content": search_user_message(term, location, year, user_sites),
                 }
             ],
-            extra_headers=_PROMPT_CACHE_HEADER,
         )
     except Exception as exc:
         log.error("Claude web search failed for '%s': %s", label, exc, exc_info=True)
@@ -124,7 +126,7 @@ async def discover_sites(term: str) -> list[str]:
     log.info("Discovering sites for '%s'", term)
     try:
         response = await _client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model=_MODEL,
             max_tokens=512,
             tools=[{"type": "web_search_20250305", "name": "web_search"}],
             system=[
@@ -140,7 +142,6 @@ async def discover_sites(term: str) -> list[str]:
                     "content": f"Find the best websites for upcoming public events and appearances by: {term}",
                 }
             ],
-            extra_headers=_PROMPT_CACHE_HEADER,
         )
     except Exception as exc:
         log.error("Site discovery failed for '%s': %s", term, exc, exc_info=True)

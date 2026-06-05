@@ -4,6 +4,7 @@ import json
 import re
 from typing import Optional
 
+from .constants import MAX_SEARCH_SITES
 from .logger import get_logger
 
 log = get_logger("extract")
@@ -28,7 +29,7 @@ No markdown, no comments — only the JSON array."""
 def sites_hint(user_sites: list[str]) -> str:
     if not user_sites:
         return ""
-    return " Prefer results from: " + ", ".join(user_sites[:8]) + "."
+    return " Prefer results from: " + ", ".join(user_sites[:MAX_SEARCH_SITES]) + "."
 
 
 def search_user_message(
@@ -51,9 +52,16 @@ def parse_json(raw: str, context: str) -> list[dict]:
         if m:
             candidate = candidate[m.start() :]
     try:
-        return json.loads(candidate)
-    except (json.JSONDecodeError, IndexError, AttributeError) as exc:
+        result = json.loads(candidate)
+    except json.JSONDecodeError as exc:
         log.warning(
             "Failed to parse response for '%s': %s | %s", context, exc, raw[:200]
         )
         return []
+
+    if not isinstance(result, list):
+        log.warning(
+            "Expected a JSON array for '%s', got %s", context, type(result).__name__
+        )
+        return []
+    return result

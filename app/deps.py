@@ -15,4 +15,4 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> Optiona
     user_id = decode_access_token(token)
     if not user_id:
         return None
-    return db.query(User).filter(User.id == user_id).first()
+    return db.get(User, user_id)

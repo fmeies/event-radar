@@ -29,7 +29,7 @@ app/
 
 ## Key decisions
 
-- **Auth**: JWT in httpOnly cookie (`access_token`), 7-day expiry, `samesite=lax`
+- **Auth**: JWT in httpOnly cookie (`access_token`), 7-day expiry, `samesite=strict`
 - **Email verification**: `itsdangerous.URLSafeTimedSerializer`, 24 h expiry
 - **Admin notifications**: `send_admin_registration_notification()` is called after every successful registration. Target address is `ADMIN_EMAIL` (falls back to `FROM_EMAIL`). Failure is logged but does not affect the registration flow.
 - **Deduplication**: SHA-256 hash of `user_id + name + date + venue` stored in `SeenEvent`. Insert uses `INSERT OR IGNORE` (`on_conflict_do_nothing()`) to survive any race conditions.

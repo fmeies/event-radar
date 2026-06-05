@@ -83,13 +83,7 @@ class _CSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         if request.method not in _SAFE_METHODS:
             origin = request.headers.get("origin") or request.headers.get("referer", "")
-            # Strip path from referer so https://host/path matches https://host
-            origin_root = (
-                origin.split("/")[0] + "//" + origin.split("//")[-1].split("/")[0]
-                if "//" in origin
-                else origin
-            )
-            if origin and origin_root not in _ALLOWED_HOSTS:
+            if origin and _origin_from_url(origin) not in _ALLOWED_HOSTS:
                 log.warning("CSRF check failed: origin=%s", origin)
                 return JSONResponse({"detail": "Forbidden"}, status_code=403)
         return await call_next(request)
