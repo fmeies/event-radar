@@ -50,12 +50,13 @@
       <span><strong>Daily search:</strong> Every day at 08:00, all watch list entries are checked for
       new events. Already-reported events are not sent again.</span>
       <div class="switch-wrap" style="flex-shrink:0;">
-        <button type="button" id="search-toggle-btn"
-                class="switch-track {% if user.search_enabled %}switch-track-on{% else %}switch-track-off{% endif %}"
-                data-url="{{ root_path }}/search/toggle"
-                title="{% if user.search_enabled %}Pause daily search{% else %}Enable daily search{% endif %}">
+        <input type="checkbox" id="search-toggle-check" class="switch-check"
+               data-url="{{ root_path }}/search/toggle"
+               {% if user.search_enabled %}checked{% endif %}>
+        <label for="search-toggle-check" class="switch-track"
+               title="{% if user.search_enabled %}Pause daily search{% else %}Enable daily search{% endif %}">
           <span class="switch-thumb"></span>
-        </button>
+        </label>
         <span class="switch-label" id="search-toggle-label">{% if user.search_enabled %}Active{% else %}Paused{% endif %}</span>
       </div>
     </div>
@@ -241,22 +242,22 @@
   });
 
   (function () {
-    var btn = document.getElementById('search-toggle-btn');
+    var check = document.getElementById('search-toggle-check');
     var label = document.getElementById('search-toggle-label');
     var inFlight = false;
-    btn.addEventListener('click', async function () {
-      if (inFlight) return;
+    check.addEventListener('change', async function () {
+      if (inFlight) { check.checked = !check.checked; return; }
       inFlight = true;
+      var optimistic = check.checked;
       try {
-        var resp = await fetch(btn.dataset.url + '?json=1', { method: 'POST' });
-        if (!resp.ok) { window.location.reload(); return; }
+        var resp = await fetch(check.dataset.url + '?json=1', { method: 'POST' });
+        if (!resp.ok) throw new Error();
         var data = await resp.json();
-        btn.classList.toggle('switch-track-on', data.search_enabled);
-        btn.classList.toggle('switch-track-off', !data.search_enabled);
-        btn.title = data.search_enabled ? 'Pause daily search' : 'Enable daily search';
+        check.checked = data.search_enabled;
         label.textContent = data.search_enabled ? 'Active' : 'Paused';
       } catch (_) {
-        window.location.reload();
+        check.checked = !optimistic;
+        label.textContent = !optimistic ? 'Active' : 'Paused';
       } finally {
         inFlight = false;
       }
