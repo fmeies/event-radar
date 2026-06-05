@@ -420,6 +420,10 @@ input:focus {
   font-size: 0.8125rem;
   color: var(--text-muted);
   white-space: nowrap;
+  min-width: 3rem;
+}
+.switch-track {
+  touch-action: manipulation;
 }
 
 /* ── Empty state ── */
