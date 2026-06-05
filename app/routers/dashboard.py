@@ -10,8 +10,12 @@ from fastapi.responses import (
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+import re
+
 from ..config import settings
 from ..constants import MAX_SEARCH_SITES, MAX_SEARCH_TERMS
+
+_DOMAIN_RE = re.compile(r"^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z0-9\-]+)+$")
 from ..database import get_db
 from ..deps import get_current_user
 from ..limiter import limiter
@@ -53,6 +57,8 @@ async def dashboard(
             "user": user,
             "terms": user.search_terms,
             "sites": user.search_sites,
+            "max_terms": MAX_SEARCH_TERMS,
+            "max_sites": MAX_SEARCH_SITES,
             "success": "Location saved." if msg == "location_saved" else "",
             "error": _ERRORS.get(error, ""),
         },
@@ -174,7 +180,8 @@ async def update_location(
     if not user:
         return _redir("/login")
 
-    user.location = location.strip()
+    location = location.strip()[:100]
+    user.location = location
     db.commit()
 
     return _redir("/dashboard?msg=location_saved")
@@ -235,14 +242,40 @@ async def apply_discovered_sites(
     if not user:
         return JSONResponse({"ok": False}, status_code=401)
 
+    normalised = []
+    for raw in payload.sites:
+        site = (
+            raw.strip()
+            .lower()
+            .removeprefix("https://")
+            .removeprefix("http://")
+            .rstrip("/")
+        )
+        if site and len(site) <= 100 and _DOMAIN_RE.match(site):
+            normalised.append(site)
+
     for old in user.search_sites:
         db.delete(old)
 
-    for site in payload.sites[:MAX_SEARCH_SITES]:
+    for site in normalised[:MAX_SEARCH_SITES]:
         db.add(SearchSite(user_id=user.id, site=site))
 
     db.commit()
-    return JSONResponse({"ok": True, "count": len(payload.sites[:MAX_SEARCH_SITES])})
+    return JSONResponse({"ok": True, "count": len(normalised[:MAX_SEARCH_SITES])})
+
+
+@router.post("/search/toggle")
+async def toggle_search(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not user:
+        return _redir("/login")
+
+    user.search_enabled = not user.search_enabled
+    db.commit()
+
+    return _redir("/dashboard")
 
 
 @router.post("/account/delete")

@@ -158,6 +158,9 @@ async def _search_events(
 
 
 async def _process_user(user: User, db) -> None:
+    if not user.search_enabled:
+        log.info("Skipping %s — search disabled", user.email)
+        return
     if not user.location:
         log.info("Skipping %s — no location set", user.email)
         return
@@ -237,6 +240,11 @@ async def run_pipeline() -> None:
                 log.error("Failed for %s: %s", user.email, exc, exc_info=True)
     finally:
         db.close()
+
+
+async def run_for_user(user_id: int) -> None:
+    """Public entry point for running the pipeline for a single user."""
+    await _run_for_user(user_id)
 
 
 async def _run_for_user(user_id: int) -> None:

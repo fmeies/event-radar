@@ -1,4 +1,4 @@
-.env
+.env*
 seed_sites.py
 __pycache__/
 *.pyc

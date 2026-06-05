@@ -46,9 +46,16 @@
   <div class="stack">
 
     <!-- Schedule info -->
-    <div class="info-banner">
-      <strong>Automatic schedule:</strong> Every day at 08:00, all watch list entries are combined
-      with your location and checked for new events. Already-reported events are not sent again.
+    <div class="info-banner" style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
+      <span>
+        <strong>Daily search:</strong> Every day at 08:00, all watch list entries are checked for
+        new events. Already-reported events are not sent again.
+      </span>
+      <form method="post" action="{{ root_path }}/search/toggle" style="flex-shrink:0;">
+        <button type="submit" class="toggle-pill {% if user.search_enabled %}toggle-pill-on{% else %}toggle-pill-off{% endif %}">
+          {% if user.search_enabled %}✓ Enabled{% else %}○ Paused{% endif %}
+        </button>
+      </form>
     </div>
 
     <!-- Location -->
@@ -69,7 +76,7 @@
       <div class="card-title">
         🎵 Watch list
         {% if terms %}
-          <span class="term-count">{{ terms|length }}&thinsp;/&thinsp;20</span>
+          <span class="term-count">{{ terms|length }}&thinsp;/&thinsp;{{ max_terms }}</span>
         {% endif %}
       </div>
       <p class="hint">Artists, bands, authors, or speakers you want to track.</p>
@@ -106,7 +113,7 @@
       <div class="card-title">
         🌐 Search sites
         {% if sites %}
-          <span class="term-count">{{ sites|length }}&thinsp;/&thinsp;8</span>
+          <span class="term-count">{{ sites|length }}&thinsp;/&thinsp;{{ max_sites }}</span>
         {% endif %}
       </div>
       <p class="hint">Websites Claude should prefer when searching for events (e.g. ra.co, eventim.de). Use <strong>Discover</strong> to let Claude suggest sites for your watch list automatically.</p>

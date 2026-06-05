@@ -62,14 +62,8 @@ async def register(
         )
 
     if db.query(User).filter(User.email == email).first():
-        return templates.TemplateResponse(
-            "register.html",
-            {
-                "request": request,
-                "user": None,
-                "error": "An account with this email address already exists.",
-            },
-        )
+        # Don't reveal whether the address is already registered.
+        return _redir("/login?msg=registered")
 
     token = generate_verification_token(email)
     new_user = User(
@@ -115,10 +109,14 @@ async def verify_email(request: Request, token: str, db: Session = Depends(get_d
         )
 
     user = db.query(User).filter(User.email == email).first()
-    if not user:
+    if not user or user.verification_token != token:
         return templates.TemplateResponse(
             "login.html",
-            {"request": request, "user": None, "error": "Account not found."},
+            {
+                "request": request,
+                "user": None,
+                "error": "This confirmation link is invalid or has expired.",
+            },
         )
 
     user.is_verified = True
@@ -182,7 +180,7 @@ async def login(
         "access_token",
         create_access_token(user.id),
         httponly=True,
-        samesite="lax",
+        samesite="strict",
         secure=settings.secure_cookies,
         max_age=604800,  # 7 days
     )

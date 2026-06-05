@@ -44,9 +44,11 @@ def generate_verification_token(email: str) -> str:
 
 
 def verify_email_token(token: str) -> str | None:
+    from itsdangerous import BadData
+
     try:
         return _serializer.loads(
             token, salt="email-verify", max_age=VERIFY_TOKEN_MAX_AGE
         )
-    except Exception:
+    except BadData:
         return None

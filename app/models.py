@@ -25,6 +25,7 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
     is_verified = Column(Boolean, default=False, nullable=False)
+    search_enabled = Column(Boolean, default=True, nullable=False)
     verification_token = Column(String, nullable=True)
     location = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
