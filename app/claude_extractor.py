@@ -25,7 +25,9 @@ Return exclusively a JSON array. Each object contains:
 - "city": city (string or null)
 - "url": direct URL to the event or ticket page (string or null)
 
-Only include events that are thematically relevant to the search term.
+Only include events for the exact person or group named in the search term.
+Match the full name, not just the surname — "Norbert Waltz" must never return events
+for "Sasha Waltz". When in doubt, leave the event out.
 If no events are recognisable, return [].
 No markdown, no comments — only the JSON array."""
 

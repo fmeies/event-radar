@@ -19,37 +19,37 @@ TODAY = date.today().isoformat()
 
 def test_valid_event_passes():
     event = {"name": "Pixies", "date": TOMORROW, "city": "Berlin", "venue": "Zitadelle"}
-    assert _is_valid_event(event, "Berlin") is True
+    assert _is_valid_event(event, "Berlin", "Pixies") is True
 
 
 def test_event_today_passes():
     event = {"name": "Pixies", "date": TODAY, "city": "Berlin", "venue": None}
-    assert _is_valid_event(event, "Berlin") is True
+    assert _is_valid_event(event, "Berlin", "Pixies") is True
 
 
 def test_past_event_rejected():
     event = {"name": "Pixies", "date": YESTERDAY, "city": "Berlin", "venue": None}
-    assert _is_valid_event(event, "Berlin") is False
+    assert _is_valid_event(event, "Berlin", "Pixies") is False
 
 
 def test_missing_date_rejected():
     event = {"name": "Pixies", "date": None, "city": "Berlin", "venue": None}
-    assert _is_valid_event(event, "Berlin") is False
+    assert _is_valid_event(event, "Berlin", "Pixies") is False
 
 
 def test_missing_city_rejected():
     event = {"name": "Pixies", "date": TOMORROW, "city": None, "venue": "Zitadelle"}
-    assert _is_valid_event(event, "Berlin") is False
+    assert _is_valid_event(event, "Berlin", "Pixies") is False
 
 
 def test_unparseable_date_rejected():
     event = {"name": "Pixies", "date": "Summer 2026", "city": "Berlin", "venue": None}
-    assert _is_valid_event(event, "Berlin") is False
+    assert _is_valid_event(event, "Berlin", "Pixies") is False
 
 
 def test_wrong_city_rejected():
     event = {"name": "Pixies", "date": TOMORROW, "city": "Hamburg", "venue": None}
-    assert _is_valid_event(event, "Berlin") is False
+    assert _is_valid_event(event, "Berlin", "Pixies") is False
 
 
 def test_city_substring_match():
@@ -59,12 +59,12 @@ def test_city_substring_match():
         "city": "Berlin, Germany",
         "venue": None,
     }
-    assert _is_valid_event(event, "Berlin") is True
+    assert _is_valid_event(event, "Berlin", "Pixies") is True
 
 
 def test_city_case_insensitive():
     event = {"name": "Pixies", "date": TOMORROW, "city": "berlin", "venue": None}
-    assert _is_valid_event(event, "Berlin") is True
+    assert _is_valid_event(event, "Berlin", "Pixies") is True
 
 
 def test_date_with_time_component():
@@ -74,7 +74,50 @@ def test_date_with_time_component():
         "city": "Berlin",
         "venue": None,
     }
-    assert _is_valid_event(event, "Berlin") is True
+    assert _is_valid_event(event, "Berlin", "Pixies") is True
+
+
+# ── name matching (false-positive guard) ─────────────────────────────────────────
+
+
+def test_surname_only_match_rejected():
+    event = {"name": "Sasha Waltz", "date": TOMORROW, "city": "Berlin", "venue": None}
+    assert _is_valid_event(event, "Berlin", "Norbert Waltz") is False
+
+
+def test_full_name_match_passes():
+    event = {"name": "Norbert Waltz", "date": TOMORROW, "city": "Berlin", "venue": None}
+    assert _is_valid_event(event, "Berlin", "Norbert Waltz") is True
+
+
+def test_name_match_is_case_insensitive():
+    event = {"name": "norbert waltz", "date": TOMORROW, "city": "Berlin", "venue": None}
+    assert _is_valid_event(event, "Berlin", "Norbert Waltz") is True
+
+
+def test_name_match_ignores_word_order():
+    event = {
+        "name": "Waltz, Norbert (live)",
+        "date": TOMORROW,
+        "city": "Berlin",
+        "venue": None,
+    }
+    assert _is_valid_event(event, "Berlin", "Norbert Waltz") is True
+
+
+def test_name_match_allows_extra_words():
+    event = {
+        "name": "Norbert Waltz & His Band",
+        "date": TOMORROW,
+        "city": "Berlin",
+        "venue": None,
+    }
+    assert _is_valid_event(event, "Berlin", "Norbert Waltz") is True
+
+
+def test_missing_name_rejected():
+    event = {"name": None, "date": TOMORROW, "city": "Berlin", "venue": None}
+    assert _is_valid_event(event, "Berlin", "Norbert Waltz") is False
 
 
 # ── _event_hash ────────────────────────────────────────────────────────────────

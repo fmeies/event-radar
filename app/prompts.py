@@ -22,6 +22,9 @@ Return exclusively a JSON array. Each object contains:
 - "url": direct URL to the event or ticket page (string or null)
 
 Only include confirmed upcoming events with a known date and city.
+CRITICAL: Only include events for the exact person or group named in the search term.
+Match the full name, not just the surname — "Norbert Waltz" must never return events
+for "Sasha Waltz". When in doubt, leave the event out.
 If no events are found, return [].
 No markdown, no comments — only the JSON array."""
 

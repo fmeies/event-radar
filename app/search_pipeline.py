@@ -4,6 +4,7 @@ import asyncio
 import contextvars
 import hashlib
 import logging
+import re
 from datetime import date, datetime, timezone
 
 import httpx
@@ -23,12 +24,39 @@ log = get_logger("pipeline")
 BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
 
 
-def _is_valid_event(event: dict, location: str) -> bool:
-    """Returns True only for events with a clean future date in the user's city."""
+_MIN_NAME_TOKEN_LEN = 2
+
+
+def _name_tokens(text: str) -> list[str]:
+    """Lowercase alphanumeric word tokens, ignoring initials and punctuation."""
+    return [
+        t for t in re.findall(r"[^\W_]+", text.lower()) if len(t) >= _MIN_NAME_TOKEN_LEN
+    ]
+
+
+def _name_matches(event_name: str | None, term: str) -> bool:
+    """True if every significant word of the search term appears in the event name.
+
+    Guards against surname-only false positives: searching "Norbert Waltz" must
+    not match an event for "Sasha Waltz". If the term has no significant tokens
+    (e.g. only initials) the check is skipped rather than rejecting everything.
+    """
+    term_tokens = _name_tokens(term)
+    if not term_tokens:
+        return True
+    name_tokens = set(_name_tokens(event_name or ""))
+    return all(token in name_tokens for token in term_tokens)
+
+
+def _is_valid_event(event: dict, location: str, term: str) -> bool:
+    """Returns True only for future events in the user's city matching the search term."""
     date_str = event.get("date")
     city = event.get("city")
 
     if not date_str or not city:
+        return False
+
+    if not _name_matches(event.get("name"), term):
         return False
 
     try:
@@ -208,14 +236,15 @@ async def _process_user(user_id: int) -> None:
         if i > 0:
             await asyncio.sleep(_INTER_TERM_DELAY_SECONDS)
         for event in await _search_events(term, location, year, user_sites):
-            if _is_valid_event(event, location):
+            if _is_valid_event(event, location, term):
                 candidates.append(event)
             else:
                 log.debug(
-                    "Filtered out: %s | date=%s city=%s",
+                    "Filtered out: %s | date=%s city=%s (term=%s)",
                     event.get("name"),
                     event.get("date"),
                     event.get("city"),
+                    term,
                 )
 
     if not candidates:
