@@ -27,6 +27,40 @@ def test_parse_json_garbage_returns_empty():
     assert parse_json("not json at all", "ctx") == []
 
 
+def test_parse_json_strips_trailing_prose():
+    # Claude web search appends explanatory notes after the array; a plain
+    # json.loads fails here with "Extra data" and would drop real events.
+    raw = '[{"name": "A"}]\n\nNote: these are the only confirmed events.'
+    assert parse_json(raw, "ctx") == [{"name": "A"}]
+
+
+def test_parse_json_empty_array_with_prose_is_not_a_warning():
+    # The exact shape seen in production: contradictory prose around an empty
+    # array. The correct result is "no events", not a parse failure.
+    raw = "I found one event:\n\n[]\n\nNote: actually none are confirmed."
+    assert parse_json(raw, "ctx") == []
+
+
+def test_parse_json_skips_citation_markers():
+    # A bracketed citation like [1] must not be mistaken for the events array.
+    raw = 'See the keynote [1]. Events: [{"name": "A"}]'
+    assert parse_json(raw, "ctx") == [{"name": "A"}]
+
+
+def test_parse_json_citation_only_returns_empty():
+    raw = "A past keynote [1] but no upcoming events were found."
+    assert parse_json(raw, "ctx") == []
+
+
+def test_parse_json_filters_non_dict_items():
+    assert parse_json('[{"name": "A"}, 5, "x"]', "ctx") == [{"name": "A"}]
+
+
+def test_parse_json_truncated_array_returns_empty():
+    # An unterminated array (e.g. hit max_tokens) is genuinely malformed.
+    assert parse_json('[{"name": "A"}', "ctx") == []
+
+
 # ── sites_hint ───────────────────────────────────────────────────────────────
 
 

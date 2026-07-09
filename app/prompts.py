@@ -9,8 +9,6 @@ from .logger import get_logger
 
 log = get_logger("extract")
 
-_FENCE_RE = re.compile(r"```(?:json)?\s*\n(.*?)\n```", re.DOTALL)
-
 SYSTEM_SEARCH = """\
 You search for upcoming public events and appearances and return structured data.
 Events include concerts, readings, lectures, talks, signings, and any other public appearances.
@@ -45,26 +43,43 @@ def search_user_message(
     )
 
 
-def parse_json(raw: str, context: str) -> list[dict]:
-    candidate = raw.strip()
-    fenced = _FENCE_RE.search(candidate)
-    if fenced:
-        candidate = fenced.group(1).strip()
-    elif not candidate.startswith(("[", "{")):
-        m = re.search(r"[\[{]", candidate)
-        if m:
-            candidate = candidate[m.start() :]
-    try:
-        result = json.loads(candidate)
-    except json.JSONDecodeError as exc:
-        log.warning(
-            "Failed to parse response for '%s': %s | %s", context, exc, raw[:200]
-        )
-        return []
+def _find_events_array(text: str) -> Optional[list[dict]]:
+    """Return the first JSON array of objects embedded in `text`, or None.
 
-    if not isinstance(result, list):
-        log.warning(
-            "Expected a JSON array for '%s', got %s", context, type(result).__name__
-        )
+    The model is asked for a bare JSON array, but — especially via Claude web
+    search — it often wraps it in prose ("I found one event:"), code fences, or
+    a trailing "Note: ...", and sometimes emits citation markers like ``[1]``
+    before the real payload. A single ``json.loads`` of the whole string fails on
+    all of these ("Extra data"). Scanning every ``[`` with a raw decoder, which
+    stops after one value and ignores trailing text, tolerates them instead.
+
+    Returns ``[]`` when the model validly reported no events, and ``None`` only
+    when a ``[`` was present but nothing decoded to a valid array (malformed or
+    truncated output) — the one case worth a warning.
+    """
+    decoder = json.JSONDecoder()
+    saw_bracket = False
+    saw_valid_array = False
+    for match in re.finditer(r"\[", text):
+        saw_bracket = True
+        try:
+            value, _ = decoder.raw_decode(text, match.start())
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(value, list):
+            continue
+        saw_valid_array = True
+        events = [item for item in value if isinstance(item, dict)]
+        if events:
+            return events
+    if saw_bracket and not saw_valid_array:
+        return None
+    return []
+
+
+def parse_json(raw: str, context: str) -> list[dict]:
+    events = _find_events_array(raw)
+    if events is None:
+        log.warning("Failed to parse response for '%s': %s", context, raw[:200])
         return []
-    return result
+    return events
