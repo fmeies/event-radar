@@ -25,7 +25,7 @@ async def search_events(
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "sonar",
+                    "model": settings.perplexity_model,
                     "messages": [
                         {"role": "system", "content": SYSTEM_SEARCH},
                         {

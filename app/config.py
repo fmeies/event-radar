@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str
     brave_api_key: str = ""
     perplexity_api_key: str = ""
+    perplexity_model: str = "sonar"  # e.g. sonar (default) or sonar-pro (deeper)
     database_url: str = "sqlite:////data/event_radar.db"
     smtp_host: str
     smtp_port: int = 587
