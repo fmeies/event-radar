@@ -44,6 +44,7 @@ The app is now available at `http://localhost:8000`.
 | `ANTHROPIC_API_KEY` | ✅ | Anthropic API key |
 | `BRAVE_API_KEY` | | Brave Search API key — required for the `brave_claude` engine |
 | `PERPLEXITY_API_KEY` | | Perplexity API key — required for the `sonar` engine |
+| `PERPLEXITY_MODEL` | | Perplexity model for the `sonar` engine. Default: `sonar` (cheap, shallow); use `sonar-pro` for deeper search. |
 | `DATABASE_URL` | | Default: `sqlite:////data/event_radar.db` |
 | `SMTP_HOST` | ✅ | SMTP server hostname |
 | `SMTP_PORT` | | Default: `587` (STARTTLS). Use `465` for SSL |
