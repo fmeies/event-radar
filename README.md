@@ -31,7 +31,16 @@ git clone ...
 cd event-radar
 cp .env.example .env
 # Fill in .env (see Configuration below)
-docker compose up --build
+docker compose pull && docker compose up -d
+```
+
+Every push to `main` publishes `ghcr.io/fmeies/event-radar:latest` (linux/amd64) after CI passes, plus a `sha-<commit>` tag. Git tags `vX.Y.Z` publish matching version tags.
+
+To test local changes, build under the same tag and start without pulling:
+
+```bash
+docker build -t ghcr.io/fmeies/event-radar:latest .
+docker compose up -d --pull never
 ```
 
 The app is now available at `http://localhost:8000`.

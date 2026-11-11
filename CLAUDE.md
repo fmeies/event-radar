@@ -2,7 +2,7 @@
 
 ## Architecture
 
-Two Docker containers sharing a SQLite volume:
+Two Docker containers sharing a SQLite volume, both running the image `ghcr.io/fmeies/event-radar:latest`. `.github/workflows/docker.yml` publishes it (linux/amd64; `latest`, `sha-*`, semver on `v*` tags) on pushes to `main`, only after `ci.yml` passes (reused via `workflow_call`). Compose is pull-only (no `build:`), so a failed pull fails loudly instead of triggering a slow local build. The image is public, so `.dockerignore` keeps `.env*` and local state out of it.
 
 - **`web`** — FastAPI app (uvicorn, port 8000, localhost-only)
 - **`worker`** — supercronic runs `run_pipeline.py` daily at 08:00

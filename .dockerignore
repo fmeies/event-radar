@@ -1,0 +1,15 @@
+# The image is public on GHCR: keep secrets and local state out of it
+.env*
+!.env.example
+.git
+.github
+.venv
+.claude
+.mypy_cache
+.pytest_cache
+__pycache__
+*.pyc
+data
+tests
+seed_sites.py
+.DS_Store

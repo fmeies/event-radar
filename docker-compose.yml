@@ -1,6 +1,8 @@
+# Pull-only on purpose: without build, a failed pull errors out instead of silently
+# falling back to a slow local build. To test local changes, see README.
 services:
   web:
-    build: .
+    image: ghcr.io/fmeies/event-radar:latest
     restart: unless-stopped
     ports:
       - "127.0.0.1:${PORT:-8000}:8000"
@@ -17,7 +19,7 @@ services:
       retries: 3
 
   worker:
-    build: .
+    image: ghcr.io/fmeies/event-radar:latest
     restart: unless-stopped
     command: ["/usr/local/bin/supercronic", "/app/crontab"]
     volumes:
