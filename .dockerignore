@@ -1,6 +1,5 @@
 # The image is public on GHCR: keep secrets and local state out of it
 .env*
-!.env.example
 .git
 .github
 .venv
@@ -13,3 +12,12 @@ data
 tests
 seed_sites.py
 .DS_Store
+# Only needed to develop or build, not to run
+*.md
+LICENSE
+Dockerfile
+docker-compose.yml
+.dockerignore
+.gitignore
+.pylintrc
+mypy.ini
