@@ -3,6 +3,8 @@ name: CI
 on:
   push:
   pull_request:
+  # Lets the Docker workflow gate publishing on the tests
+  workflow_call:
 
 jobs:
   lint-and-test:
