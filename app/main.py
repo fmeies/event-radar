@@ -89,7 +89,15 @@ class _CSRFMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-app = FastAPI(title="Event Radar", lifespan=lifespan)
+# The app is public and serves HTML, not an API for third parties: the generated
+# docs would only hand attackers a ready-made map of every endpoint.
+app = FastAPI(
+    title="Event Radar",
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 app.add_middleware(_CSRFMiddleware)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

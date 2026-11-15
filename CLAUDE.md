@@ -47,6 +47,7 @@ app/
 - **Redirects**: all `RedirectResponse` calls use `_redir()` helper which prepends `settings.root_path`. Apache `ProxyPassReverse` does not reliably rewrite relative `Location` headers, so the prefix must be in the URL.
 - **Shared templates**: `app/templating.py` exports a single `templates` instance — do not create additional `Jinja2Templates` instances in routers.
 - **`root_path`**: set via `ROOT_PATH` env var (e.g. `/event-radar`). Injected as a Jinja2 global in `templating.py` so all templates can prefix links and form actions. All template paths must use `{{ root_path }}/...` — never hardcode absolute paths. Do NOT set `root_path` on the FastAPI constructor — it breaks static file routing.
+- **No generated API docs**: `/docs`, `/redoc` and `/openapi.json` are disabled on the FastAPI constructor, and uvicorn runs with `--no-server-header`. The instance is public, and both would only show attackers the endpoint map and the stack.
 - **Password hashing**: `bcrypt` used directly (no passlib — passlib is incompatible with bcrypt 4.x).
 - **Timezones**: Docker containers run with `TZ=Europe/Berlin` so log timestamps and the 08:00 cron match the host timezone.
 
