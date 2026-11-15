@@ -45,6 +45,12 @@ docker compose up -d --pull never
 
 The app is now available at `http://localhost:8000`.
 
+The containers run as the unprivileged user `app` (uid 1000). A database volume created by an older image belongs to root; hand it over once before upgrading:
+
+```bash
+docker run --rm -v event-radar_sqlite_data:/data alpine chown -R 1000:1000 /data
+```
+
 ## Configuration
 
 | Variable | Required | Description |
